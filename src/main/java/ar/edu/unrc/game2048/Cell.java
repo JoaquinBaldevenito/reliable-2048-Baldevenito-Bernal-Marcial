@@ -34,6 +34,12 @@ public final class Cell {
         if (value < 0) {
             throw new IllegalArgumentException("Cell value cannot be negative: " + value);
         }
+        if (value == 1) {
+            throw new IllegalArgumentException("Cell must be a power of two greater than 1: " + value);
+        }
+        if (((value & (value - 1)) != 0)) {
+            throw new IllegalArgumentException("Cell must be a power of two: " + value);
+        }
         this.value = value;
     }
     
