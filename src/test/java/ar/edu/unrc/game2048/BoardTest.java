@@ -1,11 +1,5 @@
 package ar.edu.unrc.game2048;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
 
 public class BoardTest {
@@ -676,6 +670,34 @@ public class BoardTest {
             }
         }
         assertFalse(grid.isWinningBoard());
+    }
+
+    @Test
+    public void testIsLosingBoard() {
+        // Arrange
+        Board grid = createEmptyBoard();
+        grid.setCell(0, 0, new Cell(2));
+        grid.setCell(1, 0, new Cell(4));
+        grid.setCell(2, 0, new Cell(8));
+        grid.setCell(3, 0, new Cell(16));
+
+        grid.setCell(0, 1, new Cell(16));
+        grid.setCell(1, 1, new Cell(8));
+        grid.setCell(2, 1, new Cell(4));
+        grid.setCell(3, 1, new Cell(2));
+
+        grid.setCell(0, 2, new Cell(2));
+        grid.setCell(1, 2, new Cell(4));
+        grid.setCell(2, 2, new Cell(8));
+        grid.setCell(3, 2, new Cell(16));
+
+        grid.setCell(0, 3, new Cell(16));
+        grid.setCell(1, 3, new Cell(8));
+        grid.setCell(2, 3, new Cell(4));
+        grid.setCell(3, 3, new Cell(2));
+
+        // Act & Assert
+        assertTrue(grid.isLosingBoard());
     }
 
     @Test
