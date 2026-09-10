@@ -674,6 +674,33 @@ public class BoardTest {
     }
 
     @Test
+    public void isLosingBoardFalseWhenRightmostPairCanMerge() {
+        Board grid = createEmptyBoard();
+        // Único merge posible: (0,2) y (0,3)
+        grid.setCell(0, 0, new Cell(8));
+        grid.setCell(0, 1, new Cell(4));
+        grid.setCell(0, 2, new Cell(2));
+        grid.setCell(0, 3, new Cell(2));
+
+        grid.setCell(1, 0, new Cell(4));
+        grid.setCell(1, 1, new Cell(8));
+        grid.setCell(1, 2, new Cell(4));
+        grid.setCell(1, 3, new Cell(8));
+
+        grid.setCell(2, 0, new Cell(2));
+        grid.setCell(2, 1, new Cell(4));
+        grid.setCell(2, 2, new Cell(8));
+        grid.setCell(2, 3, new Cell(4));
+
+        grid.setCell(3, 0, new Cell(4));
+        grid.setCell(3, 1, new Cell(2));
+        grid.setCell(3, 2, new Cell(4));
+        grid.setCell(3, 3, new Cell(8));
+
+        assertFalse(grid.isLosingBoard());
+    }
+
+    @Test
     public void testIsLosingBoard() {
         // Arrange
         Board grid = createEmptyBoard();
@@ -875,11 +902,26 @@ public class BoardTest {
         assertEquals(previous.getScore(), grid.getScore());
     }
 
-    
+    @Test
+    public void moveLeftReturnsTrueWhenBoardChanges() {
+        Board board = createEmptyBoard();
+        board.setCell(0, 1, new Cell(2));
+        board.setCell(0, 2, new Cell(2));
+        assertTrue(board.moveLeft());
+    }
+
+    @Test
+    public void moveRightReturnsTrueWhenBoardChanges() {
+        Board board = createEmptyBoard();
+        board.setCell(0, 1, new Cell(2));
+        board.setCell(0, 2, new Cell(2));
+        assertTrue(board.moveRight());
+    }
+
     @Test
     public void validatePosition() {
         Board board = new Board(4);
-        
+
         Exception e1 = assertThrows(IndexOutOfBoundsException.class, () -> board.getCell(-1, 0));
         assertEquals("Position (-1, 0) is out of bounds for board size 4", e1.getMessage());
 
@@ -896,8 +938,9 @@ public class BoardTest {
     @Test
     public void validPositionsAtBoundaries() {
         Board board = new Board(4);
-        
-        // Si estos fallan o tiran excepción, el test se romperá, matando al mutante que cambia "<" por "<="
+
+        // Si estos fallan o tiran excepción, el test se romperá, matando al mutante que
+        // cambia "<" por "<="
         assertNotNull(board.getCell(0, 0));
         assertNotNull(board.getCell(3, 3));
         assertNotNull(board.getCell(3, 0));
