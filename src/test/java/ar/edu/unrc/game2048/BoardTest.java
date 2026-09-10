@@ -1,5 +1,7 @@
 package ar.edu.unrc.game2048;
 
+import java.lang.reflect.Method;
+
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -947,4 +949,44 @@ public class BoardTest {
         assertNotNull(board.getCell(0, 3));
     }
 
+    @Test
+    public void addRandomTileReturnsFalseWhenBoardIsFull() throws Exception {
+        Board board = new Board(4);
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                board.setCell(i, j, new Cell(2));
+        Method m = Board.class.getDeclaredMethod("addRandomTile");
+        m.setAccessible(true);
+        assertFalse((Boolean) m.invoke(board));
+    }
+
+    @Test
+    public void addRandomTileReturnsTrueWhenBoardHasEmptyCells() throws Exception {
+        Board board = new Board(4);
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                board.setCell(i, j, Cell.EMPTY);
+        Method m = Board.class.getDeclaredMethod("addRandomTile");
+        m.setAccessible(true);
+        assertTrue((Boolean) m.invoke(board));
+    }
+
+    @Test
+    public void testDifferentBoardsHaveDifferentHashCodes() {
+        Board board = createEmptyBoard();
+        board.setCell(0, 0, new Cell(2));
+
+        Board board1 = createEmptyBoard();
+        board1.setCell(0, 0, new Cell(4));
+
+        assertNotEquals(board.hashCode(), board1.hashCode());
+    }
+
+    @Test
+    public void testDifferentPositionsHaveDifferentHashCodes() {
+        Board.Position pos1 = new Board.Position(1, 2);
+        Board.Position pos2 = new Board.Position(2, 1);
+
+        assertNotEquals(pos1.hashCode(), pos2.hashCode());
+    }
 }
