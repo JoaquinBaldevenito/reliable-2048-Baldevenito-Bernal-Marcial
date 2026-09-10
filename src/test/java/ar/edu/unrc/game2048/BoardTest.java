@@ -1,6 +1,12 @@
 package ar.edu.unrc.game2048;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
 public class BoardTest {
 
@@ -844,6 +850,35 @@ public class BoardTest {
         assertFalse(grid.moveDown());
         assertTrue(grid.equals(previous));
         assertEquals(previous.getScore(), grid.getScore());
+    }
+
+    
+    @Test
+    public void validatePosition() {
+        Board board = new Board(4);
+        
+        Exception e1 = assertThrows(IndexOutOfBoundsException.class, () -> board.getCell(-1, 0));
+        assertEquals("Position (-1, 0) is out of bounds for board size 4", e1.getMessage());
+
+        Exception e2 = assertThrows(IndexOutOfBoundsException.class, () -> board.getCell(0, -1));
+        assertEquals("Position (0, -1) is out of bounds for board size 4", e2.getMessage());
+
+        Exception e3 = assertThrows(IndexOutOfBoundsException.class, () -> board.getCell(4, 0));
+        assertEquals("Position (4, 0) is out of bounds for board size 4", e3.getMessage());
+
+        Exception e4 = assertThrows(IndexOutOfBoundsException.class, () -> board.getCell(0, 4));
+        assertEquals("Position (0, 4) is out of bounds for board size 4", e4.getMessage());
+    }
+
+    @Test
+    public void validPositionsAtBoundaries() {
+        Board board = new Board(4);
+        
+        // Si estos fallan o tiran excepción, el test se romperá, matando al mutante que cambia "<" por "<="
+        assertNotNull(board.getCell(0, 0));
+        assertNotNull(board.getCell(3, 3));
+        assertNotNull(board.getCell(3, 0));
+        assertNotNull(board.getCell(0, 3));
     }
 
 }
