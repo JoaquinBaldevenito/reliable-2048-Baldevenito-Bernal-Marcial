@@ -2,6 +2,7 @@ package ar.edu.unrc.game2048;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import java.lang.reflect.Constructor;
 
 public class MovementTest {
 
@@ -16,6 +17,13 @@ public class MovementTest {
         }
 
         return board;
+    }
+
+    @Test
+    public void testUtilityClassConstructor() throws Exception {
+        Constructor<Movement> constructor = Movement.class.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        assertNotNull(constructor.newInstance());
     }
 
     @Test
