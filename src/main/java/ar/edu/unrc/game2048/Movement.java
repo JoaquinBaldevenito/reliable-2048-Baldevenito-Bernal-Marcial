@@ -10,6 +10,12 @@ import java.util.List;
 public class Movement {
 
     /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
+    private Movement() {
+    }
+
+    /**
      * Represents the result of a move operation, including the new board state and
      * the score delta.
      */
