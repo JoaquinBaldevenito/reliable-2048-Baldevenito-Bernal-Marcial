@@ -1,6 +1,9 @@
 package ar.edu.unrc.game2048;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents the 2048 game board.
@@ -376,6 +379,32 @@ public class Board {
         return sb.toString();
     }
 
+    /**
+     * Checks the representation invariant of the Board.
+     * @return true if the board is in a valid state, false otherwise.
+     */
+    public boolean repOK() {
+        // Validate parameters
+        if (this.size <= 0) return false;
+        if (this.score < 0) return false;
+        if (this.grid == null) return false;
+        if (this.grid.length != this.size) return false;
+
+        // Validate Board and Cell
+        for (int r = 0; r < this.size; r++) {
+            if (this.grid[r] == null) return false;
+            if (this.grid[r].length != this.size) return false;
+            
+            for (int c = 0; c < this.size; c++) {
+                Cell cell = this.grid[r][c];
+                // Not null Cells and self repOK
+                if (cell == null || !cell.repOK()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
     // ==================== INNER CLASSES ====================
 
     /**
