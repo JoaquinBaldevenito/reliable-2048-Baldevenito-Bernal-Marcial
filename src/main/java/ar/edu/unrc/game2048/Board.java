@@ -46,6 +46,11 @@ public class Board {
     private int score;
 
     /**
+     * The strategy used to spawn new tiles on the board.
+     */
+    private final AddTileStrategy spawner;
+
+    /**
      * Creates a new board of the default size (4x4) with two random tiles.
      */
     public Board() {
@@ -53,18 +58,31 @@ public class Board {
     }
 
     /**
-     * Creates a new board of the specified size with two random tiles.
+     * Creates a new board of the specified size using a deterministic tile spawner.
      *
      * @param size the board size (must be > 0)
      * @throws IllegalArgumentException if size <= 0
      */
     public Board(int size) {
+        // Deterministic for randoop testing (no flaky test)
+        this(size, new AddTileDeterministic()); 
+    }
+
+    /**
+     * Creates a new board of the specified size with two random tiles.
+     *
+     * @param size the board size (must be > 0)
+     * @param spawner the strategy used to spawn tiles (e.g., AddRandomTile or AddTileDeterministic)
+     * @throws IllegalArgumentException if size <= 0
+     */
+    public Board(int size, AddTileStrategy spawner) {
         if (size <= 0) {
             throw new IllegalArgumentException("Board size must be positive: " + size);
         }
         this.size = size;
         this.grid = new Cell[size][size];
         this.score = 0;
+        this.spawner = spawner;
         initializeEmpty();
         addRandomTile();
         addRandomTile();
@@ -79,6 +97,7 @@ public class Board {
         this.size = other.size;
         this.grid = new Cell[size][size];
         this.score = other.score;
+        this.spawner = other.spawner;
         for (int r = 0; r < size; r++) {
             for (int c = 0; c < size; c++) {
                 this.grid[r][c] = other.grid[r][c];
@@ -309,20 +328,7 @@ public class Board {
      * @return true if a tile was added, false if the board was full
      */
     private boolean addRandomTile() {
-        Set<Position> empty = getEmptyPositions();
-        if (empty.isEmpty()) {
-            return false;
-        }
-
-        // Choose random position
-        int randomIndex = (int) (Math.random() * empty.size());
-        Position pos = empty.stream().skip(randomIndex).findFirst().get();
-
-        // 90% chance of 2, 10% chance of 4 (standard 2048 rules)
-        int value = Math.random() < 0.9 ? 2 : 4;
-        grid[pos.row][pos.col] = new Cell(value);
-
-        return true;
+        return this.spawner.addTile(this.grid, getEmptyPositions());
     }
 
     // ==================== UTILITY METHODS ====================
