@@ -128,4 +128,22 @@ public final class Cell {
     public String toString() {
         return value == 0 ? "." : String.valueOf(value);
     }
+
+    /**
+     * Checks the representation invariant of the Cell.
+     * @return true if the cell is in a valid state, false otherwise.
+     */
+    public boolean repOK() {
+        if (this.value < 0) {
+            return false; // Not negative
+        }
+        if (this.value == 1) {
+            return false; // Power of two greater than 1
+        }
+        if (this.value == 0) {
+            return true; // EMPTY cell is valid
+        }
+        // Power of two
+        return (this.value & (this.value - 1)) == 0;
+    }
 }
