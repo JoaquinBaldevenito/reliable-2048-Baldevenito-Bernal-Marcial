@@ -5,6 +5,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import randoop.CheckRep;
+
 /**
  * Represents the 2048 game board.
  * The board is a square grid of Cells, typically 4x4.
@@ -389,6 +391,7 @@ public class Board {
      * Checks the representation invariant of the Board.
      * @return true if the board is in a valid state, false otherwise.
      */
+    @CheckRep 
     public boolean repOK() {
         // Validate parameters
         if (this.size <= 0) return false;
