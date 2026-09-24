@@ -21,10 +21,10 @@ CLASS_PATH=$(pwd)/target/classes
 # Generate tests
 echo "Generating EvoSuite tests Board..."
 java -jar "$EVOSUITE_JAR" -projectCP "$CLASS_PATH" -class $TARGET_CLASS \
-    -Dsearch_budget=$SEARCH_BUDGET -Dtest_dir=src/test/java
+    -Dsearch_budget=$SEARCH_BUDGET -Dtest_dir=src/test/java -Duse_separate_classloader=false
 
 echo "Generating EvoSuite tests Cell..."
 java -jar "$EVOSUITE_JAR" -projectCP "$CLASS_PATH" -class $TARGET_CLASS1 \
-    -Dsearch_budget=$SEARCH_BUDGET -Dtest_dir=src/test/java
+    -Dsearch_budget=$SEARCH_BUDGET -Dtest_dir=src/test/java -Duse_separate_classloader=false
 # Run tests
 mvn test -Pevosuite
