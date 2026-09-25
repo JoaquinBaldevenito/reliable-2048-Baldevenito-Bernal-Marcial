@@ -45,37 +45,6 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <plugin>
-                <groupId>org.pitest</groupId>
-                <artifactId>pitest-maven</artifactId>
-                <version>1.15.0</version>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.pitest</groupId>
-                        <artifactId>pitest-junit5-plugin</artifactId>
-                        <version>1.2.0</version>
-                    </dependency>
-                </dependencies>
-                <configuration>
-                    <targetClasses>
-                        <param>ar.edu.unrc.game2048.*</param>
-                    </targetClasses>
-                    <targetTests>
-                        <param>ar.edu.unrc.game2048.*Test</param>
-                        <param>ar.edu.unrc.game2048.*Tests</param>
-                        <param>randoopTests.*Tests</param>
-                        <param>randoopTests.*Test</param>
-                        <param>evosuite.*Test</param>
-                    </targetTests>
-                    <threads>4</threads>
-                    <timestampedReports>false</timestampedReports>
-                    <outputFormats>
-                        <format>HTML</format>
-                        <format>XML</format>
-                    </outputFormats>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
     <profiles>
@@ -100,6 +69,34 @@
                             </excludes>
                         </configuration>
                     </plugin>
+                    <plugin>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-maven</artifactId>
+                        <version>1.15.0</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.pitest</groupId>
+                                <artifactId>pitest-junit5-plugin</artifactId>
+                                <version>1.2.0</version>
+                            </dependency>
+                        </dependencies>
+                        <configuration>
+                            <targetClasses>
+                                <param>ar.edu.unrc.game2048.*</param>
+                            </targetClasses>
+                            <targetTests>
+                                <param>ar.edu.unrc.game2048.BoardTest</param>
+                                <param>ar.edu.unrc.game2048.CellTest</param>
+                                <param>ar.edu.unrc.game2048.MovementTest</param>
+                            </targetTests>
+                            <threads>4</threads>
+                            <timestampedReports>false</timestampedReports>
+                            <outputFormats>
+                                <format>HTML</format>
+                                <format>XML</format>
+                            </outputFormats>
+                        </configuration>
+                    </plugin>
                 </plugins>
             </build>
         </profile>
@@ -118,6 +115,33 @@
                             <excludes>
                                 <exclude>**/*_ESTest.java</exclude>
                             </excludes>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-maven</artifactId>
+                        <version>1.15.0</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.pitest</groupId>
+                                <artifactId>pitest-junit5-plugin</artifactId>
+                                <version>1.2.0</version>
+                            </dependency>
+                        </dependencies>
+                        <configuration>
+                            <targetClasses>
+                                <param>ar.edu.unrc.game2048.*</param>
+                            </targetClasses>
+                            <targetTests>
+                                <param>randoopTests.*Tests</param>
+                                <param>randoopTests.*Test</param>
+                            </targetTests>
+                            <threads>4</threads>
+                            <timestampedReports>false</timestampedReports>
+                            <outputFormats>
+                                <format>HTML</format>
+                                <format>XML</format>
+                            </outputFormats>
                         </configuration>
                     </plugin>
                 </plugins>
@@ -150,6 +174,32 @@
                             <includes>
                                 <include>**/*_ESTest.java</include>
                             </includes>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-maven</artifactId>
+                        <version>1.15.0</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.pitest</groupId>
+                                <artifactId>pitest-junit5-plugin</artifactId>
+                                <version>1.2.0</version>
+                            </dependency>
+                        </dependencies>
+                        <configuration>
+                            <targetClasses>
+                                <param>ar.edu.unrc.game2048.*</param>
+                            </targetClasses>
+                            <targetTests>
+                                <param>ar.edu.unrc.game2048.*_ESTest</param>
+                            </targetTests>
+                            <threads>4</threads>
+                            <timestampedReports>false</timestampedReports>
+                            <outputFormats>
+                                <format>HTML</format>
+                                <format>XML</format>
+                            </outputFormats>
                         </configuration>
                     </plugin>
                 </plugins>
