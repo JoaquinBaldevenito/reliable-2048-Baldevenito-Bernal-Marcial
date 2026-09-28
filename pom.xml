@@ -180,13 +180,6 @@
                         <groupId>org.pitest</groupId>
                         <artifactId>pitest-maven</artifactId>
                         <version>1.15.0</version>
-                        <dependencies>
-                            <dependency>
-                                <groupId>org.pitest</groupId>
-                                <artifactId>pitest-junit5-plugin</artifactId>
-                                <version>1.2.0</version>
-                            </dependency>
-                        </dependencies>
                         <configuration>
                             <targetClasses>
                                 <param>ar.edu.unrc.game2048.*</param>
@@ -194,7 +187,10 @@
                             <targetTests>
                                 <param>ar.edu.unrc.game2048.*_ESTest</param>
                             </targetTests>
-                            <threads>4</threads>
+                            <jvmArgs>
+                                <value>-Xmx2048m</value>
+                            </jvmArgs>
+                            <threads>4</threads> 
                             <timestampedReports>false</timestampedReports>
                             <outputFormats>
                                 <format>HTML</format>
