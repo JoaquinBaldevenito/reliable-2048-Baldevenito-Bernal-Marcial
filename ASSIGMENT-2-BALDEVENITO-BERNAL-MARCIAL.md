@@ -78,11 +78,11 @@ We evaluated the Randoop test suites using JaCoCo and PIT, and compared the resu
 
 **Metrics Comparison**
 
-| Metric | Manual Tests (Phase 2) | Randoop Tests (Phase 3) |
-| --- | --- | --- |
-| **JaCoCo Line Coverage** | **88%** | **74%** |
-| **JaCoCo Branch Coverage** | **90%** | **65%** |
-| **PIT Mutation Coverage** | **88%** | **63%** |
+| Metric | Manual Tests (Phase 2) | Randoop Tests (Phase 3) | Evosuite (Phase 3)
+| --- | --- | --- | --- |
+| **JaCoCo Line Coverage** | **88%** | **74%** | **86%**
+| **JaCoCo Branch Coverage** | **90%** | **65%** | **80%**
+| **PIT Mutation Coverage** | **88%** | **63%** | 
 | **PIT Test Strength** | **98%** | **84%** |
 
 **Class Breakdown (Randoop Results)**
@@ -90,6 +90,12 @@ We evaluated the Randoop test suites using JaCoCo and PIT, and compared the resu
 * **Board:** Line Coverage 93% | Mutation Coverage 70%
 * **Cell:** Line Coverage 81% | Mutation Coverage 71%
 * **Movement:** Line Coverage 85% | Mutation Coverage 76%
+
+**Class Breakdown (Evosuite)**
+
+* **Board:** Line Coverage 93% | Branch Coverage 83% | Mutation Coverage 
+* **Cell:** Line Coverage 97% | Branch Coverage 91% | Mutation Coverage
+* **Movement:** Line Coverage 98% | Branch Coverage 95% | Mutation Coverage
 
 **Analysis:**
 As expected, Randoop's automated tests scored lower across the board compared to our manual suite. While it managed to cover a solid amount of lines (74%), its branch and mutation coverage dropped significantly. This happens because Randoop generates method sequences blindly, but it doesn't actually understand the game's logic.
@@ -111,3 +117,18 @@ To help Randoop generate better tests and catch invalid states, we implemented r
 We ran Randoop one final time. It automatically picked up the `repOK()` methods by naming convention and injected them as assertions into the generated code.
 
 * **Results:** Randoop didn't find any code sequences that broke the invariants or possibles bugs.
+
+```
+
+## 2. Code Coverage Comparison
+
+We evaluated the Randoop test suites using JaCoCo and PIT, and compared the results with our manual suite from Phase 2.
+
+**Metrics Comparison**
+
+| Metric | Manual Tests (Phase 2) | Randoop Tests (Phase 3) | Evosuite (Phase 3)
+| --- | --- | --- |
+| **JaCoCo Line Coverage** | **88%** | **74%** |
+| **JaCoCo Branch Coverage** | **90%** | **65%** |
+| **PIT Mutation Coverage** | **88%** | **63%** |
+| **PIT Test Strength** | **98%** | **84%** |
