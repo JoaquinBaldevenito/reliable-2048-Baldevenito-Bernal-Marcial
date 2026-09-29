@@ -78,11 +78,11 @@ We evaluated the Randoop test suites using JaCoCo and PIT, and compared the resu
 
 **Metrics Comparison**
 
-| Metric | Manual Tests (Phase 2) | Randoop Tests (Phase 3) | Evosuite (Phase 3)
-| --- | --- | --- | --- |
-| **JaCoCo Line Coverage** | **88%** | **74%** | **86%**
-| **JaCoCo Branch Coverage** | **90%** | **65%** | **80%**
-| **PIT Mutation Coverage** | **88%** | **63%** | 
+| Metric | Manual Tests (Phase 2) | Randoop Tests (Phase 3) |
+| --- | --- | --- |
+| **JaCoCo Line Coverage** | **88%** | **74%** |
+| **JaCoCo Branch Coverage** | **90%** | **65%** |
+| **PIT Mutation Coverage** | **88%** | **63%** |
 | **PIT Test Strength** | **98%** | **84%** |
 
 **Class Breakdown (Randoop Results)**
@@ -90,12 +90,6 @@ We evaluated the Randoop test suites using JaCoCo and PIT, and compared the resu
 * **Board:** Line Coverage 93% | Mutation Coverage 70%
 * **Cell:** Line Coverage 81% | Mutation Coverage 71%
 * **Movement:** Line Coverage 85% | Mutation Coverage 76%
-
-**Class Breakdown (Evosuite)**
-
-* **Board:** Line Coverage 93% | Branch Coverage 83% | Mutation Coverage 
-* **Cell:** Line Coverage 97% | Branch Coverage 91% | Mutation Coverage
-* **Movement:** Line Coverage 98% | Branch Coverage 95% | Mutation Coverage
 
 **Analysis:**
 As expected, Randoop's automated tests scored lower across the board compared to our manual suite. While it managed to cover a solid amount of lines (74%), its branch and mutation coverage dropped significantly. This happens because Randoop generates method sequences blindly, but it doesn't actually understand the game's logic.
@@ -117,48 +111,3 @@ To help Randoop generate better tests and catch invalid states, we implemented r
 We ran Randoop one final time. It automatically picked up the `repOK()` methods by naming convention and injected them as assertions into the generated code.
 
 * **Results:** Randoop didn't find any code sequences that broke the invariants or possibles bugs.
-
-```
-
-## 2. Code Coverage Comparison
-
-We evaluated the Randoop test suites using JaCoCo and PIT, and compared the results with our manual suite from Phase 2.
-
-**Metrics Comparison**
-
-| Metric | Manual Tests (Phase 2) | Randoop Tests (Phase 3) | Evosuite (Phase 3)
-| --- | --- | --- |
-| **JaCoCo Line Coverage** | **88%** | **74%** |
-| **JaCoCo Branch Coverage** | **90%** | **65%** |
-| **PIT Mutation Coverage** | **88%** | **63%** |
-| **PIT Test Strength** | **98%** | **84%** |
-
-
-===============================================================================
-
-# Assignment 3: Automated Test Generation and Fuzzing Report
-
-## Phase 2: Fuzzing
-
-### 1. Fuzzer Implementation (`fuzz()` method)
-The fuzzer is designed to dynamically test the application through its external interface (CLI). We implemented the `fuzz()` method inside the `RandomFuzzer` class to generate a valid, random sequence of standard inputs.
-
-**Implementation Details:**
-* The length of the sequence is randomly determined per trial, bounded by `min_length` (1000) and `max_length` (50000). This values forces the game to finish so we test the most possibles scenarios.
-* A loop randomly selects one of the valid movement keys (`'a'`, `'s'`, `'w'`, `'d'`) and appends it to a string, followed by a newline character (`\n`) to simulate pressing Enter.
-* Crucially, the string always concludes with the `'q\n'` command. This ensures the Java process terminates gracefully, preventing infinite loops and timeouts in the `CLIRunner`.
-
-### 2. Execution and Results (Standard Run)
-We executed the fuzzer (20 trials) against the compiled `MainCLI` class. 
-* **Outcome:** The program did not crash. All trials returned a `PASS` status, and the process exited normally with return code 0. No unhandled exceptions or hangs were detected through standard standard inputs.
-
-### 3. Enhancing Bug-Finding with Invariants (`repOK()`)
-To perform deeper dynamic analysis, we integrated our representation invariants (`repOK()`) from Assignment 2 into the application logic:
-* We modified the `MainCLI.java` event loop to execute `assert board.repOK();` immediately after every valid movement.
-* We updated the `CLIRunner.COMMAND` in the Python script to include the `-ea` (Enable Assertions) JVM flag, allowing the fuzzer to actively trigger these invariants.
-
-### 4. Re-Execution Results (With Assertions Enabled)
-We executed the fuzzer again with assertions enabled, simulating massive sequences of random key presses.
-
-* **Outcome:** No crashes or assertion failures were found. All 20 trials successfully yielded a `PASS` result.
-* **Diagnosis:** The complete absence of `AssertionError` exceptions confirms that our domain logic (`Board`, `Cell`, `Movement`) is robust.
