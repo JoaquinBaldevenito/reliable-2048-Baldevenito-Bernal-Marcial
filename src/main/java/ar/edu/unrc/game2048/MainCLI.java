@@ -63,7 +63,7 @@ public class MainCLI {
             } else {
                 System.out.println("No tiles moved. Try a different direction.");
             }
-            
+            assert board.repOK() : "Invariant violated: Board state is invalid!";
             System.out.println();
         }
         
