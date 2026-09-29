@@ -1,5 +1,7 @@
 # Comprehensive Testing Report: 2048 Game
 
+**Integrantes:** Joaquín Baldevenito, Emiliano Bernal, Valentín Marcial
+
 ---
 
 ## Phase 1: Initial Testing
