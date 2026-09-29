@@ -47,7 +47,7 @@ class CLIRunner(Runner):
     PASS, FAIL, or UNRESOLVED.
     """
 
-    COMMAND = ['java', '-cp', './target/classes', 'ar.edu.unrc.game2048.MainCLI']
+    COMMAND = ['java', '-ea', '-cp', './target/classes', 'ar.edu.unrc.game2048.MainCLI']
     TIMEOUT = 10  # seconds
 
     def run(self, inp: str) -> Tuple[subprocess.CompletedProcess, str]:
@@ -104,7 +104,7 @@ class RandomFuzzer(Fuzzer):
         Maximum number of move keys in the sequence.
     """
 
-    def __init__(self, min_length: int = 10, max_length: int = 50):
+    def __init__(self, min_length: int = 500, max_length: int = 2000):
         self.min_length = min_length
         self.max_length = max_length
 
@@ -122,7 +122,18 @@ class RandomFuzzer(Fuzzer):
         Example output for a sequence of 3 moves:
             'w\\na\\nd\\nq\\n'
         """
-        raise NotImplementedError
+        
+        result = ''
+        
+        size = random.randrange(self.min_length,self.max_length)
+        
+        for _ in range(0,size):
+            result += random.choice(KEYS) + '\n'
+        
+        result = result + QUIT + '\n'
+        
+        return result
+    
 
 # ---------------------------------------------------------------------------
 # Main: run the fuzzer and report results
@@ -130,7 +141,7 @@ class RandomFuzzer(Fuzzer):
 
 def main():
     runner = CLIRunner()
-    fuzzer = RandomFuzzer(min_length=10, max_length=50)
+    fuzzer = RandomFuzzer(min_length=1000, max_length=50000)
 
     trials = 20
     outcomes = {PASS: 0, FAIL: 0, UNRESOLVED: 0}
