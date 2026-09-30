@@ -1,30 +1,30 @@
 # Assignment 3: Automated Test Generation and Fuzzing
 
-**Integrantes:** Joaquín Baldevenito, Emiliano Bernal, Valentín Marcial
+**Team Members:** Joaquín Baldevenito, Emiliano Bernal, Valentín Marcial
 
-**Modos de ejecución:** cada suite tiene su perfil Maven: `manual` (por defecto: `BoardTest`, `CellTest`, `MovementTest`), `randoop` (`randoopTests.RegressionTest`) y `evosuite` (`*_ESTest`).
+**Execution Modes:** Each test suite uses a dedicated Maven profile: `manual` (default: `BoardTest`, `CellTest`, `MovementTest`), `randoop` (`randoopTests.RegressionTest`), and `evosuite` (`*_ESTest`).
 
 ```bash
-mvn clean test jacoco:report -P<perfil>               # tests + cobertura (target/site/jacoco/)
-mvn test-compile pitest:mutationCoverage -P<perfil>   # mutación (target/pit-reports/)
-mvn clean compile && python3 fuzzer.py                # fuzzer (con -ea)
+mvn clean test jacoco:report -P<profile>               # Run tests + generate coverage report (target/site/jacoco/)
+mvn test-compile pitest:mutationCoverage -P<profile>   # Run mutation testing (target/pit-reports/)
+mvn clean compile && python3 fuzzer.py                # Run fuzzer (with -ea enabled)
+
 ```
 
 ---
 
-# Fase 1: Generación automática de tests con EvoSuite
+# Phase 1: Automated Test Generation with EvoSuite
 
-## Metricas de cobertura Randoop vs. EvoSuite
+## Coverage Metrics: Randoop vs. EvoSuite
 
-### Cómo se midió
+### Measurement Methodology
 
-Las tres suites se midieron con el mismo procedimiento (JaCoCo + PIT 1.15.0), usando los comandos de *Modos de ejecución* con el perfil de cada una.
+All three suites were evaluated under identical conditions using JaCoCo and PIT (v1.15.0), using the execution commands defined in *Execution Modes* with their respective profile.
 
-
-Generación de las suites automáticas:
+Generation of automated suites:
 
 ```bash
-# Randoop (--time-limit=30, las 3 clases juntas)
+# Randoop (--time-limit=30, all 3 classes generated together)
 mvn clean compile
 java -cp "lib/randoop-all-4.3.4.jar:target/classes" randoop.main.Main gentests \
   --testclass=ar.edu.unrc.game2048.Cell \
@@ -32,188 +32,211 @@ java -cp "lib/randoop-all-4.3.4.jar:target/classes" randoop.main.Main gentests \
   --testclass=ar.edu.unrc.game2048.Movement \
   --time-limit=30 --junit-output-dir=src/test/java --junit-package-name=randoopTests
 
-# EvoSuite (search_budget=60 por clase; ver runEvosuite.sh)
-java -jar evosuite-1.0.6.jar -projectCP target/classes -class <Clase> \
+# EvoSuite (search_budget=60 per class; see runEvosuite.sh)
+java -jar evosuite-1.0.6.jar -projectCP target/classes -class <Class> \
   -Dsearch_budget=60 -Dtest_dir=src/test/java -Duse_separate_classloader=false
+
 ```
 
-### Resumen global
+### Global Summary
 
-| Suite    | Tests | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength | Mutantes sin cubrir |
-|----------|:-----:|:-------------:|:---------------:|:-----------------:|:-------------:|:-------------------:|
-| Manual   | 101   | 76%           | 74%             | 75% (177/237)     | 100%          | 60                  |
-| Randoop  | 1243  | 71%           | 66%             | 62% (148/237)     | 95%           | 82                  |
-| EvoSuite | 83    | 82%           | 80%             | 74% (175/237)     | 89%           | 40                  |
+| Suite | Tests | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength | Uncovered Mutants |
+| --- | --- | --- | --- | --- | --- | --- |
+| Manual | 101 | 76% | 74% | 75% (177/237) | 100% | 60 |
+| Randoop | 1243 | 71% | 66% | 62% (148/237) | 95% | 82 |
+| EvoSuite | 83 | 82% | 80% | 74% (175/237) | 89% | 40 |
 
-### Mutation Coverage por clase
+### Mutation Coverage by Class
 
-| Clase                | Manual | Randoop | EvoSuite |
-|----------------------|:------:|:-------:|:--------:|
-| Board                | 83%    | 63%     | 78%      |
-| Cell                 | 74%    | 71%     | 88%      |
-| Movement             | 100%   | 100%    | 100%     |
-| AddRandomTile        | 0%     | 0%      | 17%      |
-| AddTileDeterministic | 100%   | 67%     | 33%      |
-| MainCLI              | 0%     | 0%      | 0%       |
+| Class | Manual | Randoop | EvoSuite |
+| --- | --- | --- | --- |
+| Board | 83% | 63% | 78% |
+| Cell | 74% | 71% | 88% |
+| Movement | 100% | 100% | 100% |
+| AddRandomTile | 0% | 0% | 17% |
+| AddTileDeterministic | 100% | 67% | 33% |
+| MainCLI | 0% | 0% | 0% |
 
-### Manual
+### Manual Suite
 
-| Clase                  | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength |
-|------------------------|:-------------:|:---------------:|:-----------------:|:-------------:|
-| Board                  | 90%           | 80%             | 83% (110/132)     | 100%          |
-| Board.Position         | 100%          | 90%             | —                 | —             |
-| Board.Direction        | 100%          | n/a             | —                 | —             |
-| Cell                   | 80%           | 76%             | 74% (31/42)       | 100%          |
-| Movement               | 98%           | 95%             | 100% (33/33)      | 100%          |
-| Movement.MoveResult    | 100%          | n/a             | —                 | —             |
-| AddRandomTile          | 0%            | 0%              | 0% (0/6)          | n/a           |
-| AddTileDeterministic   | 100%          | 100%            | 100% (3/3)        | 100%          |
-| MainCLI                | 0%            | 0%              | 0% (0/21)         | n/a           |
+| Class | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength |
+| --- | --- | --- | --- | --- |
+| Board | 90% | 80% | 83% (110/132) | 100% |
+| Board.Position | 100% | 90% | — | — |
+| Board.Direction | 100% | n/a | — | — |
+| Cell | 80% | 76% | 74% (31/42) | 100% |
+| Movement | 98% | 95% | 100% (33/33) | 100% |
+| Movement.MoveResult | 100% | n/a | — | — |
+| AddRandomTile | 0% | 0% | 0% (0/6) | n/a |
+| AddTileDeterministic | 100% | 100% | 100% (3/3) | 100% |
+| MainCLI | 0% | 0% | 0% (0/21) | n/a |
 
-**Global:** Line 76% | Branch 74% | Mutation Coverage 75% | Test Strength 100%
+**Global:** Line: 76% | Branch: 74% | Mutation Coverage: 75% | Test Strength: 100%
 
-*Diferencia con el Assignment 2:* allí la suite manual reportaba 88% de líneas, 90% de branches y 88% de mutación. Estos valores son menores porque se midió la misma suite contra el código actual, que cambió después de aquella medición: se agregaron `repOK()` en `Board` y `Cell`, cambió la lógica de merge de `Cell` y se incorporaron las estrategias `AddRandomTile` / `AddTileDeterministic`. Los tests manuales no ejercitan ese código (por ejemplo, `AddRandomTile` queda en 0%), así que baja el porcentaje total.
+*Difference from Assignment 2:* In Assignment 2, the manual suite reported 88% line coverage, 90% branch coverage, and 88% mutation coverage. These values are lower here because the same suite was evaluated against the updated codebase: `repOK()` methods were introduced in `Board` and `Cell`, the merging logic in `Cell` was revised, and the `AddRandomTile` / `AddTileDeterministic` strategies were added. Because the existing manual tests do not exercise this newly introduced code (e.g., `AddRandomTile` remains at 0%), the overall coverage metrics decrease accordingly.
 
-### Randoop (--time-limit=30)
+### Randoop Suite (--time-limit=30)
 
-Randoop generó 1243 regression tests (`RegressionTest0`: 500, `RegressionTest1`: 500, `RegressionTest2`: 243), sin tests inválidos ni tests que revelen errores.
+Randoop generated 1243 regression tests (`RegressionTest0`: 500, `RegressionTest1`: 500, `RegressionTest2`: 243), producing no invalid tests or error-revealing test cases.
 
-| Clase                  | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength |
-|------------------------|:-------------:|:---------------:|:-----------------:|:-------------:|
-| Board                  | 79%           | 64%             | 63% (83/132)      | 93%           |
-| Board.Position         | 92%           | 80%             | —                 | —             |
-| Board.Direction        | 100%          | n/a             | —                 | —             |
-| Cell                   | 77%           | 79%             | 71% (30/42)       | 100%          |
-| Movement               | 98%           | 95%             | 100% (33/33)      | 100%          |
-| Movement.MoveResult    | 100%          | n/a             | —                 | —             |
-| AddRandomTile          | 0%            | 0%              | 0% (0/6)          | n/a           |
-| AddTileDeterministic   | 100%          | 100%            | 67% (2/3)         | 67%           |
-| MainCLI                | 0%            | 0%              | 0% (0/21)         | n/a           |
+| Class | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength |
+| --- | --- | --- | --- | --- |
+| Board | 79% | 64% | 63% (83/132) | 93% |
+| Board.Position | 92% | 80% | — | — |
+| Board.Direction | 100% | n/a | — | — |
+| Cell | 77% | 79% | 71% (30/42) | 100% |
+| Movement | 98% | 95% | 100% (33/33) | 100% |
+| Movement.MoveResult | 100% | n/a | — | — |
+| AddRandomTile | 0% | 0% | 0% (0/6) | n/a |
+| AddTileDeterministic | 100% | 100% | 67% (2/3) | 67% |
+| MainCLI | 0% | 0% | 0% (0/21) | n/a |
 
-**Global:** Line 71% | Branch 66% | Mutation Coverage 62% | Test Strength 95%
+**Global:** Line: 71% | Branch: 66% | Mutation Coverage: 62% | Test Strength: 95%
 
-### EvoSuite (search_budget=60 por clase)
+### EvoSuite Suite (search_budget=60 per class)
 
-| Clase                  | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength |
-|------------------------|:-------------:|:---------------:|:-----------------:|:-------------:|
-| Board                  | 96%           | 82%             | 78% (103/132)     | 89%           |
-| Board.Position         | 92%           | 90%             | —                 | —             |
-| Board.Direction        | 100%          | n/a             | —                 | —             |
-| Cell                   | 94%           | 92%             | 88% (37/42)       | 92%           |
-| Movement               | 98%           | 95%             | 100% (33/33)      | 100%          |
-| Movement.MoveResult    | 100%          | n/a             | —                 | —             |
-| AddRandomTile          | 88%           | 50%             | 17% (1/6)         | 20%           |
-| AddTileDeterministic   | 100%          | 100%            | 33% (1/3)         | 33%           |
-| MainCLI                | 0%            | 0%              | 0% (0/21)         | n/a           |
+| Class | Line Coverage | Branch Coverage | Mutation Coverage | Test Strength |
+| --- | --- | --- | --- | --- |
+| Board | 96% | 82% | 78% (103/132) | 89% |
+| Board.Position | 92% | 90% | — | — |
+| Board.Direction | 100% | n/a | — | — |
+| Cell | 94% | 92% | 88% (37/42) | 92% |
+| Movement | 98% | 95% | 100% (33/33) | 100% |
+| Movement.MoveResult | 100% | n/a | — | — |
+| AddRandomTile | 88% | 50% | 17% (1/6) | 20% |
+| AddTileDeterministic | 100% | 100% | 33% (1/3) | 33% |
+| MainCLI | 0% | 0% | 0% (0/21) | n/a |
 
-**Global:** Line 82% | Branch 80% | Mutation Coverage 74% | Test Strength 89%
+**Global:** Line: 82% | Branch: 80% | Mutation Coverage: 74% | Test Strength: 89%
 
-#### Nota: PIT con los tests de EvoSuite
+#### Technical Note: PIT with EvoSuite Test Suites
 
-Los tests que genera EvoSuite no son JUnit "puro": usan `@RunWith(EvoRunner.class)` y una clase de *scaffolding* que dependen del runtime de EvoSuite (`evosuite-standalone-runtime`). Ese runtime reemplaza por mocks todo lo que no es determinista (`Random`, la hora del sistema, archivos, red), para que los asserts den siempre el mismo resultado.
+The test files generated by EvoSuite are not plain JUnit tests: they rely on `@RunWith(EvoRunner.class)` and scaffolding classes provided by the `evosuite-standalone-runtime`. This runtime intercepts and mocks non-deterministic system operations (`Random`, system clock, filesystem, network) to ensure reproducible test outcomes.
 
-PIT, por su parte, prueba cada mutante reemplazando "en caliente" la clase ya cargada por su versión mutada, que arma a partir del `.class` original. La JVM solo permite ese reemplazo si cambia el código de los métodos, no si cambia la jerarquía de la clase. Como el mutante no tiene la interfaz que agregó EvoSuite, la JVM lo rechaza:
+PIT performs mutation testing by hot-swapping already loaded classes with mutated bytecode derived from the original `.class` files. The JVM only allows class redefinition if method implementations change, not if class hierarchies or interfaces are altered. Because the mutant does not contain the synthetic interfaces injected by EvoSuite, the JVM rejects the redefinition:
 
 ```
 java.lang.UnsupportedOperationException: class redefinition failed: attempted to change superclass or interfaces
+
 ```
 
-Con `pitest-junit5-plugin` en el perfil `evosuite` ocurrió exactamente eso: 197 de 237 mutantes terminaron en `RUN_ERROR`. PIT los cuenta como "matados", así que el reporte daba un 83% de mutation coverage falso. Al quitar ese plugin, PIT ejecuta los tests con su soporte nativo de JUnit 4, el error desaparece (0 `RUN_ERROR`) y se obtienen los valores de la tabla. Esto se verificó empíricamente; no se investigó en detalle por qué el runner de JUnit 4 evita el conflicto.
-
-
-## Respuestas a la inspeccion de EvoSuite
-
-**¿Qué tipo de entradas generó EvoSuite?**
-Mayormente entradas "normales" del dominio: `new Board()` (32 veces), tableros chicos (`new Board(1)`, `new Board(3)`), copias (`new Board(board0)`) y celdas válidas (`new Cell(2)`, `new Cell(8)`, `new Cell(0)`). También buscó los bordes para cubrir las ramas de validación: valores inválidos para `Cell` (`new Cell(-404)`, `new Cell(1)`, `new Cell(2388)`), posiciones fuera del tablero (`new Board.Position(2048, 3775)`, `new Board.Position(4, -2660)`), strings arbitrarios para `Board.Direction.valueOf("7PD,jy")` y parámetros `null`. Además construyó tableros con `AddRandomTile` y usó `Random.setNextRandom(...)` del runtime para fijar la aleatoriedad.
-
-**¿Los oráculos son significativos o son mayormente de regresión?**
-Son mayormente de regresión: capturan lo que el código hacía al momento de generarlos, no lo que debería hacer. Por ejemplo, hay muchos `assertEquals(4, board0.getSize())`, `assertEquals(0, board0.getScore())` y aserciones repetidas sobre las constantes (`assertEquals(2048, Board.WINNING_VALUE)` aparece varias veces en el mismo test). Los más útiles son:
-- `assertTrue(board0.repOK())`, que EvoSuite incluyó porque el método existe, y que verifica el invariante;
-- las verificaciones de excepción (`fail(...)` + `verifyException(...)`, 37 casos), que comprueban que las validaciones de `Board` y `Cell` rechazan entradas inválidas.
-
-Ningún assert expresa una regla del juego del tipo "después de mover a la izquierda, dos `2` se combinan en un `4`" con la intención explícita que tiene un test manual.
-
-
-**¿EvoSuite encontró bugs?**
-No. Todas las excepciones que capturó son validaciones esperadas del código: posiciones fuera del tablero (`IndexOutOfBoundsException` con mensajes como `Position (4, 4) is out of bounds for board size 1`), valores inválidos de `Cell` y `Board.Direction.valueOf(...)` con nombres que no existen. Ningún test generado revela un comportamiento incorrecto del juego.
-
-## Comparación EvoSuite vs. Randoop
-
-| Aspecto                   | Randoop                                           | EvoSuite                                                   |
-|---------------------------|---------------------------------------------------|------------------------------------------------------------|
-| Estrategia                | Aleatoria dirigida por feedback (secuencias de llamadas) | Algoritmo genético guiado por cobertura (branch distance) |
-| Tamaño de la suite        | 1243 tests                                        | 83 tests                                                   |
-| Line / Branch             | 71% / 66%                                         | 82% / 80%                                                  |
-| Mutation Coverage         | 62%                                               | 74%                                                        |
-| Test Strength             | 95%                                               | 89%                                                        |
-| Mutantes sin cubrir       | 82                                                | 40                                                         |
-
-**Similitudes:** las dos generan oráculos de regresión (observan el comportamiento actual y lo congelan), las dos usan `repOK()` como chequeo de invariante, y ninguna cubre `MainCLI`, porque su entrada es `System.in` y no una API de métodos. En `Movement` las dos llegan al 100% de mutación.
-
-## Resumen: EvoSuite vs Randoop vs tests manuales
-
-- **EvoSuite** cubre más código con muchos menos tests, porque busca a propósito las partes que faltan. Por eso mata más mutantes (175 contra 148) y deja menos sin cubrir (40 contra 82).
-- **Randoop** tiene tests más "fuertes": verifican mejor lo que ejecutan (Test Strength 95% contra 89%). EvoSuite a veces corre código pero no chequea bien el resultado. Ejemplo: en `AddRandomTile` cubre el 88% de las líneas pero mata solo 1 de 6 mutantes.
-- **Integración:** Randoop es más fácil, sus tests son JUnit puro y andan con PIT sin cambios. EvoSuite necesita su propio runtime, lo que trajo problemas con `pitest-junit5-plugin`.
-- **Legibilidad:** las dos generan tests difíciles de leer. Randoop hace muchos y repetitivos; EvoSuite hace pocos pero largos, con nombres genéricos.
-- **Contra la suite manual (101 tests):** la manual gana en Test Strength (100%) y en mutación de `Board` (83%), porque sus asserts expresan las reglas del juego. EvoSuite la supera en cobertura de líneas (82% contra 76%) y en mutación de `Cell` (88% contra 74%).
+When using `pitest-junit5-plugin` under the `evosuite` profile, this exact issue occurred: 197 out of 237 mutants failed with `RUN_ERROR`. Because PIT treats execution errors as "killed" mutants by default, it produced an inflated, false 83% mutation score. Removing this plugin and allowing PIT to execute through native JUnit 4 support resolved the issue completely (0 `RUN_ERROR`), yielding the verified numbers reported in the tables.
 
 ---
-# Fase 2: Fuzzing
 
-`fuzzer.py` sigue la estructura de *The Fuzzing Book* y separa dos responsabilidades:
+## EvoSuite Test Suite Inspection
 
-- **`Fuzzer`** genera entradas. `RandomFuzzer.fuzz()` devuelve un string con una secuencia de teclas, una por línea, que termina en `q`.
-- **`Runner`** ejecuta el programa bajo prueba. `CLIRunner` lanza `java -ea -cp ./target/classes ar.edu.unrc.game2048.MainCLI` como subproceso, le pasa la entrada por `stdin` (timeout de 10 segundos) y clasifica el resultado:
-  - **PASS:** el proceso termina con código 0 y sin salida en `stderr`.
-  - **FAIL:** código de salida distinto de 0 o algo escrito en `stderr`, por ejemplo una excepción o un `AssertionError` de `repOK()`.
-  - **UNRESOLVED:** el proceso supera el timeout.
+**What kinds of inputs did EvoSuite generate?**
+EvoSuite generated mostly standard domain inputs: `new Board()` (invoked 32 times), small board dimensions (`new Board(1)`, `new Board(3)`), deep copies (`new Board(board0)`), and valid cells (`new Cell(2)`, `new Cell(8)`, `new Cell(0)`). It also systematically probed boundary values to cover validation branches: invalid values for `Cell` (`new Cell(-404)`, `new Cell(1)`, `new Cell(2388)`), out-of-bounds coordinates (`new Board.Position(2048, 3775)`, `new Board.Position(4, -2660)`), malformed direction strings (`Board.Direction.valueOf("7PD,jy")`), and explicit `null` parameters. Additionally, it constructed boards using `AddRandomTile` and leveraged `Random.setNextRandom(...)` from its runtime to stabilize non-deterministic tile generation.
 
-`main()` repite el ciclo *generar → ejecutar → clasificar* 20 veces, imprime cada entrada con su resultado y al final muestra un resumen con la cantidad de PASS/FAIL/UNRESOLVED. Al estar separados, se podría combinar otro fuzzer (por ejemplo, uno basado en mutación) con el mismo runner.
+**Are the test oracles meaningful, or are they mostly regression assertions?**
+They are primarily regression assertions: they freeze the observed implementation behavior at the time of generation rather than asserting expected domain requirements. For instance, there are numerous assertions such as `assertEquals(4, board0.getSize())`, `assertEquals(0, board0.getScore())`, along with repetitive checks on constants (e.g., `assertEquals(2048, Board.WINNING_VALUE)` asserted multiple times within the same test method). The most valuable assertions are:
 
-## Fuzz function implementation
-The function `def fuzz(self) -> str:` returns a string with a sequence of movements for the 2048 game.
+* `assertTrue(board0.repOK())`, automatically incorporated by EvoSuite upon detecting the invariant method.
+* Explicit exception verifications (`fail(...)` + `verifyException(...)`, occurring 37 times), which validate that constructor checks and bounds checking correctly reject invalid inputs.
 
-The function use parameters (`self.min_length` and `self.max_length`) to define how many movements to generate and pick keys randomly from the KEYS list.
+None of the generated assertions express deep game semantics, such as verifying that moving left merges two adjacent `2` tiles into a `4` and updates the accumulated score accordingly.
 
-The function starts with a empty string and using the random library we use `random.randrange(self.min_length, self.max_length)` to generate a random length for the string.
+**Did EvoSuite find bugs?**
+No bugs were uncovered. All thrown exceptions correspond to expected defensive checks in the code: out-of-bounds board coordinates (`IndexOutOfBoundsException`), invalid `Cell` values, and non-existent `Board.Direction` enum values. No generated test exposed genuine logical flaws.
 
-The function then uses a loop to pick random keys from the KEYS list and append them to the string until the desired length is reached. Finally, the function return the string with a QUIT key.
+---
 
-### Resultados del fuzzer
+## Comparison: EvoSuite vs. Randoop
 
-Con la configuración de `main()` (1000 a 50000 movimientos, 20 corridas): **20 PASS, 0 FAIL, 0 UNRESOLVED**. El programa nunca terminó con un código distinto de 0 ni escribió en `stderr`.
+| Aspect | Randoop | EvoSuite |
+| --- | --- | --- |
+| Search Strategy | Feedback-directed random sequence generation | Coverage-guided genetic algorithms (branch distance) |
+| Suite Size | 1243 tests | 83 tests |
+| Line / Branch Coverage | 71% / 66% | 82% / 80% |
+| Mutation Coverage | 62% | 74% |
+| Test Strength | 95% | 89% |
+| Uncovered Mutants | 82 | 40 |
 
-Para ver qué tan lejos llegan las partidas según la longitud de la entrada, se hicieron corridas adicionales midiendo la ficha máxima alcanzada:
+**Similarities:** Both tools produce regression oracles based on existing behavior, leverage `repOK()` methods as representation checks, and fail to cover `MainCLI` due to its dependence on `System.in` interactive streams rather than method-level APIs. Both achieve 100% mutation coverage on `Movement`.
 
-| Movimientos por entrada | Corridas | Resultado  | Llegan a *Game Over* | Ficha máxima | Ficha mediana | Score máximo |
-|-------------------------|:--------:|------------|:--------------------:|:------------:|:-------------:|:------------:|
-| 10 – 50                 | 50       | 50 PASS    | 0                    | 32           | 16            | 268          |
-| 500 – 2000              | 30       | 30 PASS    | 30                   | 256          | 128           | 3316         |
+## Synthesis: EvoSuite vs. Randoop vs. Manual Testing
 
-Con entradas cortas, el fuzzer solo explora el principio del juego: nunca llena el tablero ni llega a *Game Over*. Con entradas largas, todas las partidas terminan en *Game Over* antes de 2048, por lo que el camino de victoria (`isWinningBoard()`) nunca se ejercita con movimientos aleatorios. Esto justifica el rango de 1000 a 50000 de `main()`: garantiza que cada partida termine, aunque los movimientos posteriores al *Game Over* ya no se ejecutan.
+* **EvoSuite** achieves higher overall coverage with substantially fewer test cases by using fitness functions to target missing branches. Consequently, it kills more mutants (175 vs. 148) and leaves fewer uncovered (40 vs. 82).
+* **Randoop** produces tests with higher individual test strength (95% vs. 89%), meaning that when it does execute code, its assertions are tighter. Conversely, EvoSuite sometimes executes paths without asserting specific state transitions; for example, in `AddRandomTile`, it covers 88% of the lines but kills only 1 out of 6 mutants.
+* **Integration:** Randoop integrates cleanly into build pipelines as plain JUnit tests, requiring no runtime dependencies. EvoSuite requires an external runtime and bytecode instrumentation, introducing incompatibilities with tools like PIT when modern test runners are present.
+* **Maintainability & Readability:** Both tools produce brittle, low-readability tests. Randoop generates overwhelming numbers of repetitive tests, while EvoSuite generates lengthy setup sequences with generic variable identifiers.
+* **Comparison to Manual Suite (101 tests):** The manual test suite remains superior in Test Strength (100%) and mutation detection on `Board` (83%), because manual assertions validate functional game rules. However, EvoSuite surpasses the manual suite in line coverage (82% vs. 76%) and `Cell` mutation coverage (88% vs. 74%) by exhaustively testing parameter extremes.
 
-## Resultados de integrar repOk con -ea
+---
 
-Se agregó `assert board.repOK() : "Invariant violated: Board state is invalid!";` en `MainCLI.play()`, después de procesar cada movimiento. El runner del fuzzer ejecuta ahora `java -ea ...` para que las aserciones estén activas. `Board.repOK()` verifica tamaño positivo, score no negativo, grilla `size × size` sin celdas `null`, y que cada `Cell` cumpla su propio `repOK()` (valor 0 o potencia de 2 mayor que 1).
+# Phase 2: Fuzzing
 
-Con `-ea`, las 20 corridas de `main()` (1000 a 50000 movimientos), 100 corridas de 10 a 50 movimientos y 30 corridas de 500 a 2000 movimientos dieron **todas PASS**. Ninguna aserción falló.
+The `fuzzer.py` script follows the architectural pattern described in *The Fuzzing Book*, separating generation from execution:
 
-**Bugs encontrados:** ninguno. No hay input mínimo reproducible para reportar.
+* **`Fuzzer`** handles input generation. `RandomFuzzer.fuzz()` returns a single string containing a sequence of move keys, separated by newlines, ending with `q`.
+* **`Runner`** handles process execution. `CLIRunner` executes `java -ea -cp ./target/classes ar.edu.unrc.game2048.MainCLI` as a subprocess, streams the input through `stdin` (enforcing a 10-second timeout), and classifies the outcome:
+  * **PASS:** Process exits with code 0 and an empty `stderr`.
+  * **FAIL:** Non-zero exit code or content detected on `stderr` (e.g., uncaught exceptions or `AssertionError` triggers).
+  * **UNRESOLVED:** Execution exceeds the timeout threshold.
 
-Interpretación:
-- `repOK()` hace al fuzzer más sensible: sin él, un tablero con un `3` o un score negativo no habrían producido error visible. En estas corridas, el invariante se mantuvo en todos los estados alcanzados.
-- `repOK()` verifica la **forma** del estado, no las **reglas** del juego. Un bug que combine mal las fichas (por ejemplo, `2 2 2 2 → 8 . . .` en vez de `4 4 . .`) o que sume mal el score dejaría un tablero "válido" y pasaría inadvertido.
-- `new Board()` usa `AddTileDeterministic` (siempre un `2` en la primera posición vacía), así que el juego que ejecuta el fuzzer es determinista y no aparece un `4` nuevo. Eso reduce la variedad de estados que explora.
 
-## Reflexiones sobre que tecnica funciono mejor
 
-Para este programa, **EvoSuite fue la técnica más efectiva en la capa de lógica**: logró la mayor cobertura de líneas y ramas (82% / 80%), la mutation coverage más alta entre las técnicas automáticas (74%) y la menor cantidad de mutantes sin cubrir (40), con solo 83 tests. Su búsqueda guiada por cobertura llega a ramas de validación y a `AddRandomTile`, que Randoop no alcanzó.
+`main()` loops through this execution cycle for 20 trials, logs the input and result for each run, and prints an aggregated summary.
 
-Aun así, ninguna técnica automática reemplazó a la **suite manual** en calidad de oráculos: con 101 tests obtiene 75% de mutation coverage y 100% de test strength, porque sus asserts expresan reglas del juego y no solo "lo que el código devolvió". Las suites generadas son, sobre todo, buenas **suites de regresión**.
+## Fuzz Function Implementation
 
-**Randoop** produjo la suite más grande (1243 tests) con la menor cobertura (71% líneas, 62% mutación). Sus asserts son efectivos sobre lo que cubre (95% de test strength), pero la generación aleatoria no llega a las ramas difíciles.
+The `fuzz(self) -> str` method returns a formatted input string containing a move sequence for the 2048 CLI.
 
-El **fuzzer** es complementario: es la única técnica que ejercita `MainCLI` (0% en las demás) y el programa de punta a punta. Pero su oráculo es débil (solo crashes, o `repOK()` con `-ea`) y la exploración aleatoria no llega a estados profundos como la victoria. En este caso no encontró bugs, lo que sugiere que las clases principales ya estaban bien testeadas desde los Assignments 1 y 2. Para aprovecharlo más, habría que usar oráculos más fuertes (por ejemplo, comparar el score o el tablero contra un modelo de referencia) o guiar la generación hacia estados más avanzados.
+The implementation relies on `self.min_length` and `self.max_length` to dynamically determine the sequence size, selecting keys uniformly from `KEYS`:
 
-En síntesis: EvoSuite para maximizar cobertura automáticamente, tests manuales para verificar las reglas del dominio, y fuzzing para probar la interfaz real del programa. Combinadas, se cubren las debilidades de cada una.
+```python
+def fuzz(self) -> str:
+    result = ''
+    size = random.randrange(self.min_length, self.max_length)
+    for _ in range(0, size):
+        result += random.choice(KEYS) + '\n'
+    result = result + QUIT + '\n'
+    return result
+
+```
+
+The method initializes an empty string, determines sequence length via `random.randrange`, appends random direction keys followed by `\n`, and appends the `QUIT` (`'q\n'`) command to guarantee clean process termination.
+
+### Fuzzer Execution Results
+
+Running the baseline configuration in `main()` (1000 to 50000 moves, 20 trials) produced: **20 PASS, 0 FAIL, 0 UNRESOLVED**. The game consistently terminated with exit code 0 and produced no output on `stderr`.
+
+To observe how game depth varies with input size, additional experiments were conducted tracking maximum tile values and scores:
+
+| Moves per Input | Trials | Outcome | Reached *Game Over* | Max Tile | Median Tile | Max Score |
+| --- | --- | --- | --- | --- | --- | --- |
+| 10 – 50 | 50 | 50 PASS | 0 | 32 | 16 | 268 |
+| 500 – 2000 | 30 | 30 PASS | 30 | 256 | 128 | 3316 |
+
+Short input sequences only explore early game states, never filling the board or reaching *Game Over*. Long sequences reliably reach *Game Over* before reaching 2048; therefore, the winning condition (`isWinningBoard()`) is not exercised by purely random moves. This confirms that the 1000–50000 range in `main()` ensures game completion across all runs, even though excess commands sent after *Game Over* are ignored by the CLI loop.
+
+---
+
+## Invariant Integration (`repOK()` with `-ea`)
+
+We inserted `assert board.repOK() : "Invariant violated: Board state is invalid!";` into `MainCLI.play()` immediately after processing each move. The fuzzer runner executes with the `-ea` JVM argument to ensure assertions are evaluated. `Board.repOK()` verifies positive size, non-negative scores, a non-null `size × size` matrix, and that all containing `Cell` objects satisfy their own invariants (value is either 0 or a power of two greater than 1).
+
+Across 20 trials with the default configuration (1000–50000 moves), 100 short trials (10–50 moves), and 30 medium trials (500–2000 moves), all runs resulted in **PASS**. No assertion errors were triggered.
+
+**Bugs Found:** None. There is no reproducible failing input to report.
+
+**Technical Analysis:**
+
+* Invariants improve fuzzer sensitivity: without `repOK()`, subtle corruptions (such as a cell taking a value of `3` or a negative score) would go unnoticed if the application did not crash. The assertions confirmed that the structural invariants held across all reached states.
+* Representation invariants check structural integrity, not functional game semantics. A bug that merges tiles incorrectly (e.g., merging `[2, 2, 2, 2]` into `[8, 0, 0, 0]` instead of `[4, 4, 0, 0]`) or computes score increments incorrectly would still leave the board in a structurally valid state, evading `repOK()`.
+* Because `new Board()` defaults to `AddTileDeterministic` (spawning a `2` at the first empty index), the game executed by the fuzzer runs deterministically without generating random `4` tiles, slightly reducing state space diversity.
+
+---
+
+## Reflections: Evaluating Testing Technique Effectiveness
+
+For the domain layer of this application, **EvoSuite was the most effective automated technique**: it delivered the highest line and branch coverage (82% / 80%), the highest automated mutation score (74%), and left the lowest number of surviving mutants (40) across only 83 tests. Its search guidance successfully reached defensive branches and `AddRandomTile`, which random generation missed.
+
+However, automated tools do not match the oracle precision of the **manual test suite**. With 101 tests, the manual suite achieved 75% mutation coverage and 100% test strength, verifying specific mathematical and game transition rules rather than freezing current program output. Automated suites serve best as high-coverage regression nets.
+
+**Randoop** generated the largest suite (1243 tests) while achieving the lowest coverage (71% line, 62% mutation). While its assertions are strict on the paths it covers (95% test strength), purely random generation struggled to explore constrained execution branches.
+
+The **CLI Fuzzer** is uniquely complementary: it is the only technique that exercises `MainCLI` (which sits at 0% across all unit test suites) and validates end-to-end program execution. Its primary limitation lies in oracle strength: without differential testing or reference models, it relies strictly on crashes and `repOK()` assertion checks. Furthermore, purely random input generation cannot navigate through the state space toward deep game milestones such as the 2048 winning tile.
+
+**Conclusion:** A multi-layered strategy provides the highest assurance: EvoSuite quickly builds baseline structural branch coverage, manual unit testing guarantees domain correctness through semantic oracles, and CLI fuzzing paired with invariants guards against end-to-end runtime corruption.
