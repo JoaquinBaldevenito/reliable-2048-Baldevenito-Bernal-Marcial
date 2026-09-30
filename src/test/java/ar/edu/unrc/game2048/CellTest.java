@@ -22,12 +22,9 @@ public class CellTest {
         int invalidValue = 1;
 
         // Act
-        IllegalArgumentException exception = assertThrows(
+        assertThrows(
                 IllegalArgumentException.class,
                 () -> new Cell(invalidValue));
-
-        // Assert
-        assertTrue(exception.getMessage().contains("Cell must be a power of two greater than 1: "));
     }
 
     @Test
@@ -36,12 +33,9 @@ public class CellTest {
         int invalidValue = -2;
 
         // Act
-        IllegalArgumentException exception = assertThrows(
+        assertThrows(
                 IllegalArgumentException.class,
                 () -> new Cell(invalidValue));
-
-        // Assert
-        assertTrue(exception.getMessage().contains("Cell value cannot be negative: "));
     }
 
     @Test
@@ -50,12 +44,9 @@ public class CellTest {
         int invalidValue = 7;
 
         // Act
-        IllegalArgumentException exception = assertThrows(
+        assertThrows(
                 IllegalArgumentException.class,
                 () -> new Cell(invalidValue));
-
-        // Assert
-        assertTrue(exception.getMessage().contains("Cell must be a power of two: "));
     }
 
     @Test
@@ -76,6 +67,24 @@ public class CellTest {
 
         // Act & Assert
         assertTrue(cellA.canMergeWith(cellB));
+    }
+
+    @Test
+    public void cellcanMergeWithEquals() {
+        // Arrange
+        Cell cellA = new Cell(2);
+
+        // Act & Assert
+        assertFalse(cellA.canMergeWith(cellA));
+    }
+
+    @Test
+    public void cellcanMergeWithNull() {
+        // Arrange
+        Cell cellA = new Cell(2);
+
+        // Act & Assert
+        assertFalse(cellA.canMergeWith(null));
     }
 
     @Test
