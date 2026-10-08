@@ -174,6 +174,20 @@ public class CellTest {
     }
 
     @Test
+    public void testEmptyCell() {
+        Cell cell = new Cell(0);
+        Cell cell1 = new Cell(0);
+
+        // Act
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> cell.mergeWith(cell1));
+
+        // Assert
+        assertTrue(exception.getMessage().contains("Cannot merge cells:"));
+    }
+
+    @Test
     public void cellNotEquals() {
         // Arrange
         Cell cellA = new Cell(0);
@@ -296,4 +310,10 @@ public class CellTest {
         assertEquals(".", strEmpty);
         assertEquals("2", strWithValue);
     }
+    public void testValidCell() {
+        Cell cell2 = new Cell(2);
+        assertFalse(cell2.isEmpty());
+        assertEquals(2, cell2.getValue());
+    }
+
 }
