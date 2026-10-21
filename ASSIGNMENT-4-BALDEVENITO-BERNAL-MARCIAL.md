@@ -32,9 +32,9 @@ En la siguiente tabla detallo el propósito de cada paso. Cabe destacar que el a
 | --- | --- | --- | --- |
 | 1 | Compilar clases principales | `mvn clean compile` | Ejecutado antes de compilar los tests. |
 | 2 | Compilar las pruebas | `mvn clean test-compile` | Ejecutado; produce las clases requeridas por `ConsoleLauncher`. |
-| 3 | Instrumentar y recolectar con Chicory | Comando completo de Chicory detallado arriba | Genera `ConsoleLauncher.dtrace.gz`. |
-| 4 | Inferir invariantes | `java -cp lib/daikon.jar daikon.Daikon daikon-traces/ConsoleLauncherManual.dtrace.gz > daikon-output.txt` | Daikon termina y genera `daikon-output-manual.txt` con 1.014 líneas. |
-| 5 | Guardar invariantes serializados | Daikon genera `ConsoleLauncher.inv.gz` automáticamente al finalizar. | El archivo se puede imprimir posteriormente usando `daikon.PrintInvariants`. |
+| 3 | Instrumentar y recolectar con Chicory | Comando completo de Chicory detallado arriba | Genera `ConsoleLauncherManual.dtrace.gz`. |
+| 4 | Inferir invariantes | `java -cp lib/daikon.jar daikon.Daikon daikon-traces/ConsoleLauncherManual.dtrace.gz > daikon-output-manual.txt` | Daikon termina y genera `daikon-output-manual.txt` con 1.014 líneas. |
+| 5 | Guardar invariantes serializados | Daikon genera `ConsoleLauncherManual.inv.gz` automáticamente al finalizar. | El archivo se puede imprimir posteriormente usando `daikon.PrintInvariants`. |
 
 ## 1.3 Archivos generados
 
@@ -42,9 +42,9 @@ A partir de la ejecución, obtuve los siguientes archivos:
 
 | Archivo | Descripción |
 | --- | --- |
-| `daikon-traces/ConsoleLauncher.dtrace.gz` | Traza de ejecución recolectada por Chicory. |
-| `daikon-output.txt` | Salida cruda de la inferencia de Daikon en texto plano. |
-| `ConsoleLauncher.inv.gz` | Invariantes serializados generados automáticamente. |
+| `daikon-traces/ConsoleLauncherManual.dtrace.gz` | Traza de ejecución recolectada por Chicory. |
+| `daikon-output-manual.txt` | Salida cruda de la inferencia de Daikon en texto plano. |
+| `ConsoleLauncherManual.inv.gz` | Invariantes serializados generados automáticamente. |
 
 Para esta etapa, decidí no agregar una ejecución del fuzzer ni realizar una partida interactiva. Al utilizar el patrón de selección `^ar\.edu\.unrc\.game2048\.(Board|Cell)(\.|:::)`, logré filtrar la captura para que los puntos de programa de la salida correspondan exclusivamente a los métodos declarados en las clases `Board` y `Cell`.
 
@@ -54,7 +54,7 @@ Para esta etapa, decidí no agregar una ejecución del fuzzer ni realizar una pa
 
 ## 2.1 Puntos reportados
 
-En la siguiente tabla resumo las cantidades obtenidas; no enumero todos los invariantes para mantener la concisión. La columna "Puntos observados" cuenta los lugares del programa donde Daikon registró valores, mientras que "Invariantes informados" suma las propiedades que Daikon reportó en esos puntos. Los 734 invariantes completos se encuentran en mi archivo `daikon-output.txt`.
+En la siguiente tabla resumo las cantidades obtenidas; no enumero todos los invariantes para mantener la concisión. La columna "Puntos observados" cuenta los lugares del programa donde Daikon registró valores, mientras que "Invariantes informados" suma las propiedades que Daikon reportó en esos puntos. Los 734 invariantes completos se encuentran en mi archivo `daikon-output-manual.txt`.
 
 *Nota:* `ENTER` significa que observé la propiedad al entrar al método; `EXIT`, que se observó al salir normalmente. Algunos métodos presentan varios puntos `EXIT` para separar resultados distintos (por ejemplo, cuando retornan `true` o `false`).
 
