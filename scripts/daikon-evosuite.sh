@@ -8,6 +8,7 @@ cd "$(dirname "$0")/.."
 SRC=target/daikon-es-src
 CLS=target/daikon-es-classes
 OUT=daikon-traces
+OUT1=daikon-invariants
 
 # 1. Compile main + test code and dump the dependency classpath to a file
 #    (`-q -DforceStdout` prints nothing with this Maven setup).
@@ -18,7 +19,7 @@ CP="$(cat target/cp.txt)"
 #    tests that build huge boards (e.g. new Board(2789)): they time out and a
 #    timed-out test keeps writing to the trace, corrupting it.
 rm -rf "$SRC" "$CLS"
-mkdir -p "$SRC" "$CLS" "$OUT"
+mkdir -p "$SRC" "$CLS" "$OUT" "$OUT1"
 for c in Cell Board; do
   perl -0pe '
     s/^\@RunWith\(EvoRunner\.class\).*\n//m;
@@ -43,5 +44,5 @@ java -cp "lib/daikon.jar:target/classes:$CLS:$CP" \
 
 # 4. Infer invariants.
 java -cp lib/daikon.jar daikon.Daikon \
-     -o "$OUT/evosuite.inv.gz" "$OUT/evosuite.dtrace.gz" > "$OUT/evosuite-invariants.txt"
-echo "Invariants written to $OUT/evosuite-invariants.txt"
+     -o "$OUT1/ConsoleLauncherEvosuite.inv.gz" "$OUT/evosuite.dtrace.gz" > "$OUT1/daikon-output-evosuite.txt"
+echo "Invariants written to $OUT1/daikon-output-evosuite.txt"

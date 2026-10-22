@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 OUT=daikon-traces
+OUT1=daikon-invariants
 GAMES=5
 PATTERN='^ar\.edu\.unrc\.game2048\.(Board|Cell)(\.|:::)'
 
@@ -32,7 +33,7 @@ done
 
 # 3. Infer invariants over the EvoSuite trace and all fuzzer traces together.
 java -cp lib/daikon.jar daikon.Daikon \
-     -o "$OUT/evosuite-fuzzer.inv.gz" \
+     -o "$OUT1/ConsoleLauncherEvosuiteFuzzer.inv.gz" \
      "$OUT/evosuite.dtrace.gz" "$OUT"/fuzzer*.dtrace.gz \
-     > "$OUT/evosuite-fuzzer-invariants.txt"
-echo "Invariants written to $OUT/evosuite-fuzzer-invariants.txt"
+     > "$OUT1/evosuite-fuzzer-invariants.txt"
+echo "Invariants written to $OUT1/daikon-output-evosuite-fuzzer.txt"

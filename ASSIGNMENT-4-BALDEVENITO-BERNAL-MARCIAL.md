@@ -53,10 +53,10 @@ python3 -c "import fuzzer; print(fuzzer.RandomFuzzer(1000, 50000).fuzz(), end=''
 
 ```
 
-A continuación se detallo el propósito de cada paso del proceso:
+A continuación se detalla el propósito de cada paso del proceso:
 
 | Paso | Propósito | Comando | Resultado / Observación |
-| --- | --- | --- | --- |
+| :--- | :--- | :--- | :--- |
 | **1** | Compilar clases principales | `mvn clean compile` | Prepara los archivos `.class` de producción. |
 | **2** | Compilar las pruebas | `mvn clean test-compile` | Genera las clases de test para JUnit y Randoop. |
 | **3** | Instrumentación manual | Chicory con `ConsoleLauncher` | Genera `ConsoleLauncherManual.dtrace.gz`. |
@@ -67,7 +67,7 @@ A continuación se detallo el propósito de cada paso del proceso:
 
 ### 1.3 Archivos generados
 
-A partir de las ejecuciones, se obtuvieron los siguientes archivos dentro del repositorio:
+A partir de la ejecución, obtuvimos los siguientes archivos:
 
 * `daikon-traces/ConsoleLauncherManual.dtrace.gz`: Traza de ejecuciones de pruebas manuales.
 * `daikon-traces/ConsoleLauncherRandoop.dtrace.gz`: Traza de ejecuciones exploratorias de Randoop.
@@ -89,7 +89,7 @@ El comando de Chicory anterior no funcionó con estos tests:
 3. **Versiones de Java incompatibles:** `EvoRunner` necesita Java 8 y Daikon Java 11. Convertimos los tests a JUnit 4 común, sin `EvoRunner` ni scaffolding.
 4. **Tableros gigantes:** dos tests crean tableros de más de 1000×1000 que corrompen o inflan la traza. Los excluimos (corren 79 de 81).
 
-Todo quedó automatizado en `scripts/daikon-evosuite.sh` (con Java 11):
+Todo quedó automatizado en `scripts/daikon-evosuite.sh` (con Java 11) `mise use java@temurin-8.0.504+1 -- mvn test -Pevosuite`:
 
 ```bash
 mvn clean
@@ -161,7 +161,7 @@ Las partidas terminaron con puntajes de 568, 676, 944, 1356 y 2268. Resultados s
 En la primera ejecución sobre la suite manual, Daikon agrupó los hallazgos en los siguientes puntos de programa:
 
 | Clase | Momento observado | Puntos observados | Invariantes informados | Ejemplo representativo |
-| --- | --- | --- | --- | --- |
+| :--- | :--- | :---: | :---: | :--- |
 | `Cell` | `CLASS` | 1 | 3 | `Cell.EMPTY.value == 0` |
 | `Cell` | `OBJECT` | 1 | 2 | `this.value >= 0` |
 | `Cell` | `ENTER` | 8 | 8 | `Cell.Cell(int):::ENTER`: `value >= 0` |
@@ -214,7 +214,7 @@ Se identificaron invariantes inferidos debido a la falta de variabilidad en las 
 ### 3.1 Evaluación de `Cell` (Traza Inicial)
 
 | # | Invariante | Punto de programa | ¿Correcta? | ¿Útil? | En `repOK()` | Clasificación |
-| --- | --- | --- | --- | --- | --- | --- |
+| :-: | :--- | :--- | :-: | :-: | :-: | :--- |
 | 1 | `this.value >= 0` | `Cell:::OBJECT` | Sí | Sí | Sí | **Correcta y útil** |
 | 2 | `this.value >= Cell.EMPTY.value` | `Cell:::OBJECT` | Sí | No | Sí | **Correcta pero trivial** |
 | 3 | `this.value == orig(value)` | `Cell.Cell(int):::EXIT` | Sí | Sí | No | **Correcta y útil** |
@@ -226,7 +226,7 @@ Se identificaron invariantes inferidos debido a la falta de variabilidad en las 
 ### 3.2 Evaluación de `Board` (Traza Inicial)
 
 | # | Invariante | Punto de programa | ¿Correcta? | ¿Útil? | En `repOK()` | Clasificación |
-| --- | --- | --- | --- | --- | --- | --- |
+| :-: | :--- | :--- | :-: | :-: | :-: | :--- |
 | 1 | `this.score >= 0` | `Board:::OBJECT` | Sí | Sí | Sí | **Correcta y útil** |
 | 2 | `this.grid != null` | `Board:::OBJECT` | Sí | Sí | Sí | **Correcta y útil** |
 | 3 | `this.size == size(this.grid[])` | `Board:::OBJECT` | Sí | Sí | Parcial | **Correcta y útil** |
@@ -245,7 +245,6 @@ Se identificaron invariantes inferidos debido a la falta de variabilidad en las 
 * **`this.score % this.size == 0`:** En un tablero de tamaño $3$, un movimiento que realiza una fusión de dos celdas de valor $2$ suma $4$ puntos al marcador. Se observa que $4 \bmod 3 = 1 \neq 0$.
 * **`Board.WINNING_VALUE > this.score`:** En una partida larga el puntaje puede superar los 2048 puntos. Ni los tests manuales ni los de EvoSuite juegan partidas largas (con EvoSuite el score máximo fue 16); las partidas del fuzzer sí la refutan, con un score de 2268 (ver 1.5).
 * **`Board.DEFAULT_SIZE != size(this.grid[])-1`:** Equivale a "el tamaño nunca es 5". Construir `new Board(5)` la viola; ninguna suite construyó un tablero de 5x5.
-
 ---
 
 ### 3.4 Mejora de la cobertura de trazas
@@ -279,7 +278,7 @@ Para evaluar el impacto de la diversidad de ejecuciones en la calidad de los or�
 **¿La ampliación de la traza eliminó las invariantes espurias? ¿Reveló invariantes nuevas?**
 **Sí, rotundamente.** Al proporcionar una traza con alta variabilidad (partidas completas con fichas de alto valor como 2048 y miles de llamadas aleatorias a métodos), Daikon descartó automáticamente las falsas generalizaciones sobre los conjuntos acotados $\{2, 4\}$. Además, la diversidad de estados permitió a la herramienta descubrir relaciones algebraicas profundas que la suite manual no había logrado ejercitar con suficiente frecuencia, como la ley de duplicación exacta de valor en `Cell.mergeWith()` ($2 \times \text{this.value} = \text{return.value}$), la preservación del score en jugadas nulas de `Board.applyMove()` y los contratos de bordes en `Board.getCell()`.
 
-#### Traza ampliada con EvoSuite (manual + EvoSuite)
+### 3.4.2 Mejora de la cobertura de trazas con EvoSuite
 
 Como segunda traza ampliada usamos la traza de los tests manuales más la de los tests de EvoSuite (sección 1.4), y corrimos Daikon sobre las dos juntas. Los conteos son solo de `Board` y `Cell`.
 
@@ -290,12 +289,14 @@ Como segunda traza ampliada usamos la traza de los tests manuales más la de los
 | Invariantes nuevas y genuinas | — | `this.size >= 1` y `this.score % Board.DEFAULT_SIZE == 0` en `Board:::OBJECT` |
 | Puntos de programa cubiertos | 129 | 142 |
 
-**¿Qué aportó EvoSuite?**
+**¿Que aporto EvoSuite?**
+**¿La ampliación de la traza eliminó las invariantes espurias? ¿Reveló invariantes nuevas?**
 Solo en parte. EvoSuite aporta más variedad de **objetos**: construye tableros de muchos tamaños y con `AddRandomTile`, así que se eliminó la generalización de que el `spawner` es siempre `AddTileDeterministic` (ahora solo aparece en `Board.Board(int):::EXIT`, donde es correcta porque ese constructor siempre lo usa). También aparecieron dos invariantes genuinas: `this.size >= 1` y `this.score % Board.DEFAULT_SIZE == 0`, que en realidad expresa que el score siempre es múltiplo de 4 (ver 1.5). En cambio, EvoSuite no aporta variedad de **valores**: busca cobertura de código, no jugar partidas, y el score nunca pasó de 16. Por eso se mantienen los conjuntos `{2, 4}` y `{4, 8}` de `Cell`, `score % size == 0`, `WINNING_VALUE > score` y `DEFAULT_SIZE != size-1`. Para eliminar esas espurias hace falta una traza con partidas largas: al combinar EvoSuite con el fuzzer (sección 1.5) se eliminaron `{2, 4}`, `{4, 8}` y `WINNING_VALUE > score`.
 
 ---
 
 ## Phase 4: Comparación
+
 ### 4.1 Daikon vs. `repOK()`
 
 A continuación se comparan los invariantes inferidos por Daikon a partir de la traza de **tests manuales** con las propiedades de representación formalizadas en los métodos `repOK()` de `Cell` y `Board`:
@@ -328,20 +329,21 @@ Al integrar las trazas automáticas masivas (**Randoop + Fuzzer**), Daikon no so
 
 #### Impacto de la traza ampliada con EvoSuite sobre `repOK()`
 
-Con la traza manual + EvoSuite (sección 3.4) Daikon infirió `this.size >= 1` en `Board:::OBJECT`, que coincide con la guarda `size > 0` de `Board.repOK()` y no aparecía con los tests manuales. También infirió `this.score % Board.DEFAULT_SIZE == 0`, que expresa que el score siempre es múltiplo de 4 (ver 1.5): es una candidata para agregar a `Board.repOK()`.
+Con la traza manual + EvoSuite (sección 3.4) Daikon infirió `this.size >= 1` en `Board:::OBJECT`, que coincide con la guarda `size > 0` de `Board.repOK()` y no aparecía con los tests manuales. También infirió `this.score % Board.DEFAULT_SIZE == 0`, que expresa que el score siempre es múltiplo de 4 (ver 1.5): es una candidata para agregar a `Board.repOK()`. 
+
+Ademas, Daikon detectó la propiedad `this.spawner != null` en `Board:::OBJECT` y formalizó la precondición/postcondición de fusión en `Cell`: una fusión exitosa exige celdas con valores idénticos y no vacíos.
 
 ---
 
 ### 4.2 Comparación de enfoques de oráculos
 
 | Fuente | Método de producción | Fortalezas | Debilidades |
-| --- | --- | --- | --- |
+| :--- | :--- | :--- | :--- |
 | **Aserciones manuales** | Escritura manual | Alta intención semántica y precisión. | Costoso y propenso a omitir casos borde. |
 | **`repOK()`** | Escritura manual | Reutilizable en cualquier momento del ciclo. | Limitado a lo que el programador anticipe. |
 | **Randoop** | Captura automática de ejecuciones | Gran exploración sin esfuerzo manual. | Aserciones frágiles y sin semántica real. |
 | **EvoSuite** | Algoritmos genéticos/cobertura | Maximiza la cobertura de código. | Captura el comportamiento actual (incluidos errores). |
 | **Daikon** | Inferencia dinámica estadística | Descubre relaciones implícitas entre variables. | Sensible a la calidad de la traza (*overfitting*). |
-
 #### Evaluación sobre la traza base (Tests Manuales)
 
 Considerando únicamente la suite de tests manuales, la combinación de **aserciones manuales semánticas y el método `repOK()`** resultó ser el enfoque más útil. En esta etapa, Daikon generó invariantes demasiado fuertes o espurios (como restringir fusiones a $\{2, 4\}$ o asumir que `score` siempre era múltiplo del tamaño), demostrando que la inferencia dinámica sobre suites pequeñas requiere supervisión humana obligatoria.
@@ -357,3 +359,4 @@ La inclusión de la traza ampliada (**Randoop + Fuzzer**) transforma significati
 #### Aporte de EvoSuite
 
 EvoSuite aporta variedad de **objetos** (tamaños de tablero, `AddRandomTile`, excepciones) pero no de **valores**: sumado a los tests manuales eliminó solo la espuria del `spawner` y recuperó `size > 0` (ver 3.4). Combinado con el fuzzer (ver 1.5) eliminó también `{2, 4}`, `{4, 8}` y `WINNING_VALUE > score`. Más tests no implican datos más variados: cada técnica cubre un tipo de variedad distinto.
+**Conclusión:** La combinación de **tests manuales con aserciones semánticas y el método `repOK()`** constituye la aproximación más sólida y confiable. Daikon funciona como un excelente asistente para descubrir propiedades no documentadas, pero sus salidas requieren ser revisadas por un desarrollador para descartar generalizaciones falsas, ademas si la test suite no es muy grande y completa no genera condiciones representativas para los metodos, ni para los objetos. Sumar los tests de EvoSuite ayudó solo en parte: eliminó una generalización espuria y recuperó `size > 0`, pero no las espurias sobre valores de celdas y puntaje, porque más tests no implican datos más variados. Esas sí las eliminaron las partidas del fuzzer (ver 1.5).
