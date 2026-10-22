@@ -78,6 +78,80 @@ A partir de las ejecuciones, se obtuvieron los siguientes archivos dentro del re
 
 Al utilizar los patrones de selección `--ppt-select-pattern`, acotamos el monitoreo exclusivamente a los métodos y estados de las clases de dominio `Board` y `Cell` (incluyendo `MainCLI` para el fuzzer), evitando el ruido y sobrecosto de librerías de Java o componentes internos de JUnit.
 
+### 1.4 Recolección con los tests de EvoSuite
+
+Además de los tests manuales, recolectamos una segunda traza con los tests generados por EvoSuite (`Cell_ESTest` y `Board_ESTest`). Combinada con la traza manual forma una traza ampliada (ver 3.4).
+
+El comando de Chicory anterior no funcionó con estos tests:
+
+1. **Classpath vacío:** Maven no devolvía las dependencias (la librería de EvoSuite). Lo guardamos en un archivo con `-Dmdep.outputFile`.
+2. **Chicory rompía a EvoSuite:** instrumentaba todas las clases. Lo limitamos a `Board` y `Cell` con el mismo `--ppt-select-pattern` de la sección 1.2.
+3. **Versiones de Java incompatibles:** `EvoRunner` necesita Java 8 y Daikon Java 11. Convertimos los tests a JUnit 4 común, sin `EvoRunner` ni scaffolding.
+4. **Tableros gigantes:** dos tests crean tableros de más de 1000×1000 que corrompen o inflan la traza. Los excluimos (corren 79 de 81).
+
+Todo quedó automatizado en `scripts/daikon-evosuite.sh` (con Java 11):
+
+```bash
+mvn clean
+./scripts/daikon-evosuite.sh
+```
+
+| Paso | Qué hace el script |
+| :--- | :--- |
+| **1** | Compila y guarda el classpath en `target/cp.txt`. |
+| **2** | Copia los tests de EvoSuite a `target/daikon-es-src/` con las adaptaciones anteriores y los compila. Los tests originales no se modifican. |
+| **3** | Corre Chicory con `org.junit.runner.JUnitCore` y genera `daikon-traces/evosuite.dtrace.gz`. Resultado: `OK (79 tests)`. |
+| **4** | Corre Daikon y genera `daikon-traces/evosuite.inv.gz` y `daikon-traces/evosuite-invariants.txt`. |
+
+Para la traza ampliada, Daikon se corre sobre las dos trazas juntas:
+
+```bash
+java -cp lib/daikon.jar daikon.Daikon -o daikon-traces/manual-evosuite.inv.gz \
+    daikon-traces/ConsoleLauncherManual.dtrace.gz daikon-traces/evosuite.dtrace.gz \
+    > daikon-traces/manual-evosuite-invariants.txt
+```
+
+* `daikon-traces/evosuite.dtrace.gz`: Traza de los tests de EvoSuite.
+* `daikon-traces/evosuite-invariants.txt`: Invariantes inferidos solo con EvoSuite.
+* `daikon-traces/manual-evosuite-invariants.txt`: Invariantes inferidos con la traza ampliada (manual + EvoSuite).
+
+### 1.5 Traza combinada de EvoSuite y fuzzer
+
+EvoSuite aporta variedad de **objetos** (tableros de muchos tamaños, `AddRandomTile`, excepciones), pero no de **valores**: busca cobertura de código, no jugar partidas, y el score máximo en su traza fue 16. Para cubrir eso combinamos su traza con partidas aleatorias generadas por el fuzzer del Assignment 3.
+
+Todo quedó en `scripts/daikon-evosuite-fuzzer.sh` (con Java 11 y `python3`):
+
+```bash
+mvn clean
+./scripts/daikon-evosuite-fuzzer.sh
+```
+
+| Paso | Qué hace el script |
+| :--- | :--- |
+| **1** | Corre `scripts/daikon-evosuite.sh` y obtiene `daikon-traces/evosuite.dtrace.gz` (sección 1.4). |
+| **2** | Juega 5 partidas en el CLI bajo Chicory, con el mismo `--ppt-select-pattern`. Las jugadas las genera `RandomFuzzer` de `fuzzer.py` (entre 1000 y 3000 por partida) con semillas fijas, así el resultado es reproducible. Genera `daikon-traces/fuzzer1.dtrace.gz` … `fuzzer5.dtrace.gz`. |
+| **3** | Corre Daikon sobre las 6 trazas juntas y genera `daikon-traces/evosuite-fuzzer.inv.gz` y `daikon-traces/evosuite-fuzzer-invariants.txt`. |
+
+> El comando del enunciado `python3 fuzzer.py | java ... MainCLI` no funciona con nuestro `fuzzer.py`: su `main()` ejecuta el juego por su cuenta y solo imprime un resumen. Por eso el script usa directamente la clase `RandomFuzzer`.
+
+Las partidas terminaron con puntajes de 568, 676, 944, 1356 y 2268. Resultados sobre `Board` y `Cell`:
+
+| Invariante espuria | Solo EvoSuite | EvoSuite + fuzzer |
+| :--- | :---: | :---: |
+| `this.spawner` siempre `AddTileDeterministic` (`Board:::OBJECT`) | Eliminada | Eliminada |
+| `this.value one of {2, 4}` (`canMergeWith`, `return == true`) | Se mantiene | **Eliminada** |
+| `return.value one of {4, 8}` (`mergeWith`) | Se mantiene | **Eliminada** |
+| `Board.WINNING_VALUE > this.score` | Se mantiene | **Eliminada** |
+| `this.score % this.size == 0` | Se mantiene | Se mantiene |
+| `Board.DEFAULT_SIZE != size(this.grid[])-1` | Se mantiene | Se mantiene |
+
+* Las dos espurias que quedan sobreviven porque el CLI siempre juega en un tablero de 4x4: el fuzzer varía las jugadas, no el tamaño.
+* En lugar de `WINNING_VALUE > score` apareció `WINNING_VALUE != score`, más débil y también espuria: ninguna partida terminó exactamente con 2048 puntos.
+* `this.score % Board.DEFAULT_SIZE == 0` sobrevive a todas las partidas y es **genuina**: el puntaje solo aumenta con el valor de una celda fusionada, que siempre es una potencia de 2 mayor o igual a 4, así que el score siempre es múltiplo de 4. Daikon la expresó con `DEFAULT_SIZE` solo porque esa constante vale 4.
+* Puntos de programa e invariantes: 136 y 802 con solo EvoSuite; 140 y 790 con EvoSuite + fuzzer. Hay más puntos y menos invariantes porque las partidas refutaron varias generalizaciones.
+
+**Conclusión:** EvoSuite y el fuzzer se complementan. EvoSuite aporta variedad de objetos y el fuzzer variedad de valores; juntos eliminaron 4 de las 6 invariantes espurias.
+
 ---
 
 ## Phase 2: Inferencia de Invariantes
@@ -160,12 +234,17 @@ Se identificaron invariantes inferidos debido a la falta de variabilidad en las 
 | 5 | `this.spawner != null` | `Board:::OBJECT` | Sí | Sí | No | **Correcta y útil** |
 | 6 | `this.spawner` es `AddTileDeterministic` | `Board:::OBJECT` | No | No | No | **Demasiado fuerte** |
 | 7 | `this.score % this.size == 0` | `Board:::OBJECT` | No | No | No | **Demasiado fuerte** |
+| 8 | `Board.WINNING_VALUE > this.score` | `Board:::OBJECT` | No | No | No | **Demasiado fuerte** |
+| 9 | `Board.DEFAULT_SIZE != size(this.grid[])-1` | `Board:::OBJECT` | No | No | No | **Demasiado fuerte** |
+| 10 | `this.size >= 1` (solo con la traza ampliada, ver 1.4) | `Board:::OBJECT` | Sí | Sí | Sí | **Correcta y útil** |
 
 ### 3.3 Contraejemplos para invariantes demasiado fuertes
 
 * **`this.value one of {2, 4}` en `canMergeWith`:** Al instanciar `new Cell(8)` y llamar a `canMergeWith(new Cell(8))`, el método retorna `true`, violando el conjunto restringido `{2, 4}`.
 * **`this.spawner` siempre de tipo `AddTileDeterministic`:** En el juego real se utiliza `AddRandomTile`. Instanciar la clase mediante el constructor de producción viola esta regla.
 * **`this.score % this.size == 0`:** En un tablero de tamaño $3$, un movimiento que realiza una fusión de dos celdas de valor $2$ suma $4$ puntos al marcador. Se observa que $4 \bmod 3 = 1 \neq 0$.
+* **`Board.WINNING_VALUE > this.score`:** En una partida larga el puntaje puede superar los 2048 puntos. Ni los tests manuales ni los de EvoSuite juegan partidas largas (con EvoSuite el score máximo fue 16); las partidas del fuzzer sí la refutan, con un score de 2268 (ver 1.5).
+* **`Board.DEFAULT_SIZE != size(this.grid[])-1`:** Equivale a "el tamaño nunca es 5". Construir `new Board(5)` la viola; ninguna suite construyó un tablero de 5x5.
 
 ---
 
@@ -200,6 +279,20 @@ Para evaluar el impacto de la diversidad de ejecuciones en la calidad de los or�
 **¿La ampliación de la traza eliminó las invariantes espurias? ¿Reveló invariantes nuevas?**
 **Sí, rotundamente.** Al proporcionar una traza con alta variabilidad (partidas completas con fichas de alto valor como 2048 y miles de llamadas aleatorias a métodos), Daikon descartó automáticamente las falsas generalizaciones sobre los conjuntos acotados $\{2, 4\}$. Además, la diversidad de estados permitió a la herramienta descubrir relaciones algebraicas profundas que la suite manual no había logrado ejercitar con suficiente frecuencia, como la ley de duplicación exacta de valor en `Cell.mergeWith()` ($2 \times \text{this.value} = \text{return.value}$), la preservación del score en jugadas nulas de `Board.applyMove()` y los contratos de bordes en `Board.getCell()`.
 
+#### Traza ampliada con EvoSuite (manual + EvoSuite)
+
+Como segunda traza ampliada usamos la traza de los tests manuales más la de los tests de EvoSuite (sección 1.4), y corrimos Daikon sobre las dos juntas. Los conteos son solo de `Board` y `Cell`.
+
+| Métrica | Traza original (manual) | Traza ampliada (manual + EvoSuite) |
+| :--- | :---: | :--- |
+| Nº de invariantes inferidos | 734 | 730 (bajó: los datos nuevos refutaron algunas invariantes de la traza original) |
+| Invariantes espurias detectadas | 6 (filas 6–9 de 3.2 y filas 6–7 de 3.1) | 5: se eliminó 1 (`spawner` siempre `AddTileDeterministic`) y se mantienen las otras 5 |
+| Invariantes nuevas y genuinas | — | `this.size >= 1` y `this.score % Board.DEFAULT_SIZE == 0` en `Board:::OBJECT` |
+| Puntos de programa cubiertos | 129 | 142 |
+
+**¿Qué aportó EvoSuite?**
+Solo en parte. EvoSuite aporta más variedad de **objetos**: construye tableros de muchos tamaños y con `AddRandomTile`, así que se eliminó la generalización de que el `spawner` es siempre `AddTileDeterministic` (ahora solo aparece en `Board.Board(int):::EXIT`, donde es correcta porque ese constructor siempre lo usa). También aparecieron dos invariantes genuinas: `this.size >= 1` y `this.score % Board.DEFAULT_SIZE == 0`, que en realidad expresa que el score siempre es múltiplo de 4 (ver 1.5). En cambio, EvoSuite no aporta variedad de **valores**: busca cobertura de código, no jugar partidas, y el score nunca pasó de 16. Por eso se mantienen los conjuntos `{2, 4}` y `{4, 8}` de `Cell`, `score % size == 0`, `WINNING_VALUE > score` y `DEFAULT_SIZE != size-1`. Para eliminar esas espurias hace falta una traza con partidas largas: al combinar EvoSuite con el fuzzer (sección 1.5) se eliminaron `{2, 4}`, `{4, 8}` y `WINNING_VALUE > score`.
+
 ---
 
 ## Phase 4: Comparación
@@ -233,6 +326,10 @@ Al integrar las trazas automáticas masivas (**Randoop + Fuzzer**), Daikon no so
 | **`Board`**: Preservación de puntaje en movimientos nulos | `(return == false) ==> (this.score == orig(this.score))` | Formaliza que ante jugadas no válidas o bloqueadas en `Board.applyMove()`, el marcador permanece idéntico al estado previo a la llamada. |
 | **`Board`**: Precondición de rango en accesos | `row >= 0`, `col >= 0`, `row <= size(grid[]) - 1`, `col <= size(grid[]) - 1` | Define los límites exactos de entrada en `Board.getCell()` para garantizar que las consultas no violen la integridad del objeto ni disparen excepciones descontroladas (`IndexOutOfBoundsException`). |
 
+#### Impacto de la traza ampliada con EvoSuite sobre `repOK()`
+
+Con la traza manual + EvoSuite (sección 3.4) Daikon infirió `this.size >= 1` en `Board:::OBJECT`, que coincide con la guarda `size > 0` de `Board.repOK()` y no aparecía con los tests manuales. También infirió `this.score % Board.DEFAULT_SIZE == 0`, que expresa que el score siempre es múltiplo de 4 (ver 1.5): es una candidata para agregar a `Board.repOK()`.
+
 ---
 
 ### 4.2 Comparación de enfoques de oráculos
@@ -257,3 +354,6 @@ La inclusión de la traza ampliada (**Randoop + Fuzzer**) transforma significati
 * **Descubrimiento de leyes algebraicas:** Reveló ecuaciones exactas ($2 \times \text{this.value} = \text{return.value}$) que habrían sido laboriosas de formalizar a mano.
 * **Sinergia entre técnicas:** Daikon demuestra su máximo potencial no como un sustituto de los oráculos manuales, sino como una **herramienta de auditoría y descubrimiento de especificaciones**. Utilizar Randoop y el Fuzzer para generar volumen de trazas y Daikon para sintetizar dichas ejecuciones en invariantes legibles proporciona al desarrollador candidatos sólidos para enriquecer el método `repOK()` y las aserciones de regresión.
 
+#### Aporte de EvoSuite
+
+EvoSuite aporta variedad de **objetos** (tamaños de tablero, `AddRandomTile`, excepciones) pero no de **valores**: sumado a los tests manuales eliminó solo la espuria del `spawner` y recuperó `size > 0` (ver 3.4). Combinado con el fuzzer (ver 1.5) eliminó también `{2, 4}`, `{4, 8}` y `WINNING_VALUE > score`. Más tests no implican datos más variados: cada técnica cubre un tipo de variedad distinto.
