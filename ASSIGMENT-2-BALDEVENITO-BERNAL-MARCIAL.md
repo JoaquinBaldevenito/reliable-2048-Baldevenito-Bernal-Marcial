@@ -1,6 +1,6 @@
 # Comprehensive Testing Report: 2048 Game
 
-**Integrantes:** Joaquín Baldevenito, Emiliano Bernal, Valentín Marcial
+**Team Members:** Joaquín Baldevenito, Emiliano Bernal, Valentín Marcial
 
 ---
 
