@@ -35,5 +35,5 @@ done
 java -cp lib/daikon.jar daikon.Daikon \
      -o "$OUT1/ConsoleLauncherEvosuiteFuzzer.inv.gz" \
      "$OUT/evosuite.dtrace.gz" "$OUT"/fuzzer*.dtrace.gz \
-     > "$OUT1/evosuite-fuzzer-invariants.txt"
+     > "$OUT1/daikon-output-evosuite-fuzzer.txt"
 echo "Invariants written to $OUT1/daikon-output-evosuite-fuzzer.txt"

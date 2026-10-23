@@ -60,8 +60,8 @@ El script `scripts/daikon-evosuite.sh` se corre con Java 11 y hace lo siguiente:
    Después compila los tests a `target/daikon-es-classes/`. Los archivos de `src/` no se modifican.
 3. **Recolecta la traza con Chicory:** corre los tests con JUnit e instrumenta solo `Board` y `Cell` (el mismo patrón que usó la traza de los tests manuales, así las dos trazas se pueden combinar), sin los `_ESTest`. Genera `daikon-traces/evosuite.dtrace.gz`.
 4. **Infiere los invariantes con Daikon:** genera
-   - `daikon-traces/evosuite.inv.gz` (binario, para `PrintInvariants`);
-   - `daikon-traces/evosuite-invariants.txt` (texto, con todas las clases mezcladas).
+   - `daikon-invariants/ConsoleLauncherEvosuite.inv.gz` (binario, para `PrintInvariants`);
+   - `daikon-invariants/daikon-output-evosuite.txt` (texto, con todas las clases mezcladas).
 
 Las dos partes centrales del script son:
 
@@ -78,8 +78,8 @@ java -cp "lib/daikon.jar:target/classes:$CLS:$CP" \
 
 # Daikon: infiere invariantes a partir de la traza
 java -cp lib/daikon.jar daikon.Daikon \
-     -o daikon-traces/evosuite.inv.gz daikon-traces/evosuite.dtrace.gz \
-     > daikon-traces/evosuite-invariants.txt
+     -o daikon-invariants/ConsoleLauncherEvosuite.inv.gz daikon-traces/evosuite.dtrace.gz \
+     > daikon-invariants/daikon-output-evosuite.txt
 ```
 
 > **Nota:** al principio de la salida, Daikon informa *"No return from procedure observed N times"*. Son llamadas que terminaron con una excepción (por ejemplo `getCell` con una posición inválida). Daikon las descarta, así que las entradas inválidas que genera EvoSuite no aportan invariantes.
@@ -88,26 +88,26 @@ java -cp lib/daikon.jar daikon.Daikon \
 
 ## 3. Salida legible por clase (recomendado)
 
-`evosuite-invariants.txt` tiene unas 1100 líneas, mezcla `Cell` y `Board` e incluye secciones condicionales y redundantes. Con opciones oficiales de Daikon se puede obtener un archivo por clase más fácil de leer: `Cell` queda en 161 líneas y `Board` en 569.
+`daikon-output-evosuite.txt` tiene unas 1100 líneas, mezcla `Cell` y `Board` e incluye secciones condicionales y redundantes. Con opciones oficiales de Daikon se puede obtener un archivo por clase más fácil de leer: `Cell` queda en 161 líneas y `Board` en 569.
 
 ```bash
 # Cell
 java -cp lib/daikon.jar daikon.Daikon \
   --config_option daikon.split.PptSplitter.disable_splitting=true \
   --ppt-select-pattern='^ar\.edu\.unrc\.game2048\.Cell[.:]' \
-  --no_text_output -o daikon-traces/cell.inv.gz daikon-traces/evosuite.dtrace.gz
+  --no_text_output -o daikon-invariants/cell.inv.gz daikon-traces/evosuite.dtrace.gz
 
 java -cp lib/daikon.jar daikon.PrintInvariants --suppress_redundant \
-  daikon-traces/cell.inv.gz > daikon-traces/cell-invariants.txt
+  daikon-invariants/cell.inv.gz > daikon-invariants/cell-invariants.txt
 
 # Board
 java -cp lib/daikon.jar daikon.Daikon \
   --config_option daikon.split.PptSplitter.disable_splitting=true \
   --ppt-select-pattern='^ar\.edu\.unrc\.game2048\.Board[.:]' \
-  --no_text_output -o daikon-traces/board.inv.gz daikon-traces/evosuite.dtrace.gz
+  --no_text_output -o daikon-invariants/board.inv.gz daikon-traces/evosuite.dtrace.gz
 
 java -cp lib/daikon.jar daikon.PrintInvariants --suppress_redundant \
-  daikon-traces/board.inv.gz > daikon-traces/board-invariants.txt
+  daikon-invariants/board.inv.gz > daikon-invariants/board-invariants.txt
 ```
 
 | Opción | Qué hace |
@@ -134,8 +134,8 @@ java -cp lib/daikon.jar daikon.PrintInvariants --suppress_redundant \
 `PrintInvariants` reimprime un `.inv` sin volver a hacer la inferencia. Con `--format` se puede cambiar la notación:
 
 ```bash
-java -cp lib/daikon.jar daikon.PrintInvariants --format java daikon-traces/cell.inv.gz
-java -cp lib/daikon.jar daikon.PrintInvariants --format jml  daikon-traces/cell.inv.gz
+java -cp lib/daikon.jar daikon.PrintInvariants --format java daikon-invariants/cell.inv.gz
+java -cp lib/daikon.jar daikon.PrintInvariants --format jml  daikon-invariants/cell.inv.gz
 ```
 
 Formatos disponibles: `daikon` (por defecto), `java`, `jml`, `esc`, `dbc`. El formato `java` es útil para comparar con `repOK()`.
@@ -153,9 +153,9 @@ java -cp lib/daikon.jar daikon.PrintInvariants --help
 Daikon acepta varias trazas a la vez e infiere invariantes que se cumplen en **todas**. Combinar trazas sirve para ver si los invariantes espurios desaparecen al ampliar las ejecuciones (sección 3.4 del informe). La traza de los tests manuales es `ConsoleLauncherManual.dtrace.gz` (sección 1.2 del informe):
 
 ```bash
-java -cp lib/daikon.jar daikon.Daikon -o daikon-traces/manual-evosuite.inv.gz \
+java -cp lib/daikon.jar daikon.Daikon -o daikon-invariants/ConsoleLauncherManualEvosuite.inv.gz \
   daikon-traces/ConsoleLauncherManual.dtrace.gz daikon-traces/evosuite.dtrace.gz \
-  > daikon-traces/manual-evosuite-invariants.txt
+  > daikon-invariants/daikon-output-manual-evosuite.txt
 ```
 
 > Las dos trazas tienen que generarse con el mismo `--ppt-select-pattern`. Si no, Daikon falla con *"Duplicate declaration of program point ... with a different number of VarInfo objects"*.
@@ -177,7 +177,7 @@ El script `scripts/daikon-evosuite-fuzzer.sh` se corre con Java 11 y `python3`:
 
 1. **Corre `scripts/daikon-evosuite.sh`** (sección 2) y obtiene `daikon-traces/evosuite.dtrace.gz`.
 2. **Juega 5 partidas en el CLI bajo Chicory**, con el mismo `--ppt-select-pattern` que la traza de EvoSuite. Genera `daikon-traces/fuzzer1.dtrace.gz` … `fuzzer5.dtrace.gz`.
-3. **Corre Daikon sobre las 6 trazas juntas** y genera `daikon-traces/evosuite-fuzzer.inv.gz` y `daikon-traces/evosuite-fuzzer-invariants.txt`.
+3. **Corre Daikon sobre las 6 trazas juntas** y genera `daikon-invariants/ConsoleLauncherEvosuiteFuzzer.inv.gz` y `daikon-invariants/daikon-output-evosuite-fuzzer.txt`.
 
 La parte central de cada partida es:
 
@@ -201,7 +201,7 @@ print(RandomFuzzer(1000, 3000).fuzz(), end='')" \
 
 > El comando del enunciado `python3 fuzzer.py | java ... MainCLI` no funciona con nuestro `fuzzer.py`: su `main()` ejecuta el juego por su cuenta y solo imprime un resumen PASS/FAIL. Por eso se usa directamente la clase `RandomFuzzer`.
 
-Con las 5 partidas (puntajes de 568 a 2268) se eliminan `{2, 4}` en `canMergeWith`, `{4, 8}` en `mergeWith` y `WINNING_VALUE > score`. Siguen `score % size == 0` y `DEFAULT_SIZE != size-1`, porque el CLI siempre juega en 4x4. El detalle está en la sección 1.5 del informe.
+Con las 5 partidas (puntajes de 568 a 2268) se eliminan `{2, 4}` en `canMergeWith`, `{4, 8}` en `mergeWith` y `WINNING_VALUE > score`. Siguen `score % size == 0` y `DEFAULT_SIZE != size-1`, porque el CLI siempre juega en 4x4. El detalle está en la sección 3.4.2 del informe.
 
 ---
 
@@ -210,7 +210,7 @@ Con las 5 partidas (puntajes de 568 a 2268) se eliminan `{2, 4}` en `canMergeWit
 Daikon tiene una herramienta, `daikon.tools.jtb.Annotate`, que inserta los invariantes como comentarios en el código fuente:
 
 ```bash
-java -cp lib/daikon.jar daikon.tools.jtb.Annotate --format java daikon-traces/evosuite.inv.gz Cell.java
+java -cp lib/daikon.jar daikon.tools.jtb.Annotate --format java daikon-invariants/ConsoleLauncherEvosuite.inv.gz Cell.java
 ```
 
 Con este proyecto falla con `java.lang.Error: This can't happen` y genera un `Cell.java-javaannotated` vacío. Lo más probable es que su parser no reconozca alguna sintaxis moderna del código, pero no se investigó.
