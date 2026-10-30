@@ -91,6 +91,95 @@ public class Board {
     }
 
     /**
+     * Creates a default-size board from a string of comma-separated values.
+     *
+     * @param values the values for the 4x4 board, for example "[0,2,0,...]"
+     * @throws IllegalArgumentException if the string is malformed or contains
+     *                                  an invalid cell value
+     */
+    public Board(String values) {
+        String[] tokens = splitInitialBoard(values);
+        this.size = DEFAULT_SIZE;
+        this.grid = new Cell[size][size];
+        this.score = 0;
+        this.spawner = new AddTileDeterministic();
+
+        int occupiedCells = 0;
+        for (int i = 0; i < tokens.length; i++) {
+            int cellValue = parseCellValue(tokens[i], i);
+            if (cellValue != 0) {
+                occupiedCells++;
+            }
+            this.grid[i / size][i % size] = new Cell(cellValue);
+        }
+        validateInitialBoard(occupiedCells);
+    }
+
+    /**
+     * Validates the bracketed board format and separates its cell values.
+     *
+     * @param values board string containing exactly 16 comma-separated values
+     * @return the cell value tokens in row-major order
+     * @throws IllegalArgumentException if the string is null, lacks brackets,
+     *                                  or does not contain exactly 16 values
+     */
+    private static String[] splitInitialBoard(String values) {
+        if (values == null) {
+            throw new IllegalArgumentException("Initial board cannot be null");
+        }
+        String input = values.trim();
+        if (!input.startsWith("[") || !input.endsWith("]")) {
+            throw new IllegalArgumentException("Initial board must be enclosed in brackets");
+        }
+        String[] tokens = input.substring(1, input.length() - 1).split(",", -1);
+        if (tokens.length != DEFAULT_SIZE * DEFAULT_SIZE) {
+            throw new IllegalArgumentException(
+                    "Initial board must contain exactly " + (DEFAULT_SIZE * DEFAULT_SIZE) + " cells");
+        }
+        return tokens;
+    }
+
+    /**
+     * Converts and validates one cell value from the initial board string.
+     *
+     * @param value the text for one cell
+     * @param index the zero-based cell index, used in validation messages
+     * @return the parsed cell value
+     * @throws IllegalArgumentException if the token is not a non-negative integer
+     *                                  or is too large to represent as an int
+     */
+    private static int parseCellValue(String value, int index) {
+        String token = value.trim();
+        if (!token.matches("\\d+")) {
+            throw new IllegalArgumentException("Invalid cell value at index " + index + ": " + token);
+        }
+        try {
+            return Integer.parseInt(token);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Cell value is too large at index " + index, exception);
+        }
+    }
+
+    /**
+     * Checks the game-state rules for a newly provided initial board.
+     *
+     * @param occupiedCells number of cells containing a non-zero tile
+     * @throws IllegalArgumentException if fewer than two tiles are present, or
+     *                                  the board is already won or lost
+     */
+    private void validateInitialBoard(int occupiedCells) {
+        if (occupiedCells < 2) {
+            throw new IllegalArgumentException("Initial board must contain at least two tiles");
+        }
+        if (isWinningBoard()) {
+            throw new IllegalArgumentException("Initial board cannot already be a winning board");
+        }
+        if (isLosingBoard()) {
+            throw new IllegalArgumentException("Initial board cannot already be a losing board");
+        }
+    }
+
+    /**
      * Copy constructor - creates a deep copy of another board.
      *
      * @param other the board to copy
