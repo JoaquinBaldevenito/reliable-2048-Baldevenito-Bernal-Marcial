@@ -27,6 +27,58 @@ public class BoardTest {
     }
 
     @Test
+    public void createBoardFromString() {
+        Board board = new Board("[0,0,0,0,4,2,0,0,0,0,0,0,2,2,2,2]");
+
+        assertEquals(4, board.getSize());
+        assertEquals(4, board.getCell(1, 0).getValue());
+        assertEquals(2, board.getCell(3, 3).getValue());
+        assertEquals(10, board.getEmptyPositions().size());
+        assertTrue(board.repOK());
+    }
+
+    @Test
+    public void createBoardFromStringWithoutBrackets() {
+        assertThrows(IllegalArgumentException.class, () -> new Board("0,0,0"));
+    }
+
+    @Test
+    public void createBoardFromStringWithInvalidCellValue() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[0,0,0,0,4,2,0,0,0,0,0,0,2,2,2,1]"));
+    }
+
+    @Test
+    public void createBoardFromStringWithAllEmptyCells() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"));
+    }
+
+    @Test
+    public void createBoardFromStringWithOnlyOneTile() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2]"));
+    }
+
+    @Test
+    public void createBoardFromStringWithTwoTilesIsAccepted() {
+        assertDoesNotThrow(
+                () -> new Board("[0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,4]"));
+    }
+
+    @Test
+    public void createBoardFromStringAlreadyWon() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[2048,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"));
+    }
+
+    @Test
+    public void createBoardFromStringAlreadyLost() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[2,4,2,4,4,2,4,2,2,4,2,4,4,2,4,2]"));
+    }
+
+    @Test
     public void createValidBoardSize() {
         // Arrange
         int value = 6;
