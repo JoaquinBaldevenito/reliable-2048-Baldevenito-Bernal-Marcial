@@ -24,7 +24,6 @@ TILE_VALUES = ["2", "4", "8", "16", "32", "64", "128", "256", "512", "1024"]
 # A cell can be empty (0) or contain a valid tile.
 CELL_VALUES = ["0"] + TILE_VALUES
 
-
 class Runner:
     """Base interface for running an input and classifying its outcome."""
 
@@ -38,7 +37,10 @@ class BoardCLIRunner(Runner):
 
     # Command that starts the game with assertions enabled.
     COMMAND = [
-        "java", "-ea", "-cp", str(ROOT / "target/classes"),
+        "java",
+        "-ea",
+        "-cp",
+        str(ROOT / "target/classes"),
         "ar.edu.unrc.game2048.MainCLI",
     ]
     # A longer run is considered inconclusive.
@@ -54,12 +56,12 @@ class BoardCLIRunner(Runner):
         lines = ["Score: 0", border]
         for row in range(BOARD_SIZE):
             # Select the four cells that make up this row.
-            cells = values[row * BOARD_SIZE:(row + 1) * BOARD_SIZE]
+            cells = values[row * BOARD_SIZE : (row + 1) * BOARD_SIZE]
             # Empty cells are displayed as spaces; other cells show their value.
-            lines.append("|" + "".join(
-                "     |" if value == 0 else f"{value:5d}|"
-                for value in cells
-            ))
+            lines.append(
+                "|"
+                + "".join("     |" if value == 0 else f"{value:5d}|" for value in cells)
+            )
             lines.append(border)
         # Add the final newline to match Java's output.
         return "\n".join(lines) + "\n"
@@ -120,7 +122,7 @@ class GrammarBasedBoardFuzzer(Fuzzer):
         "<cell>": CELL_VALUES,
     }
 
-    def __init__(self, seed = None):
+    def __init__(self, seed=None):
         # A fixed seed makes the pseudo-random sequence reproducible.
         self.random = random.Random(seed)
 
@@ -135,7 +137,9 @@ class GrammarBasedBoardFuzzer(Fuzzer):
                 return board
             # Replace the symbol with a randomly selected alternative.
             replacement = self.random.choice(self.GRAMMAR[match.group()])
-            board = board[:match.start()] + replacement + board[match.end():]
+            board = board[: match.start()] + replacement + board[match.end() :]
+
+
 
 
 def parse_arguments():
