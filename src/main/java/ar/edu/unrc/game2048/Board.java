@@ -98,21 +98,29 @@ public class Board {
      *                                  an invalid cell value
      */
     public Board(String values) {
-        String[] tokens = splitInitialBoard(values);
+        int[] cellValues = parseInitialBoard(values);
         this.size = DEFAULT_SIZE;
         this.grid = new Cell[size][size];
         this.score = 0;
         this.spawner = new AddTileDeterministic();
+        validateInitialBoard(fillGrid(cellValues));
+    }
 
-        int occupiedCells = 0;
+    /**
+     * Parses and validates all the cells of an initial board string.
+     *
+     * @param values board string containing exactly 16 comma-separated values
+     * @return the 16 validated cell values in row-major order
+     * @throws IllegalArgumentException if the string is malformed or contains
+     *                                  an invalid cell value
+     */
+    private static int[] parseInitialBoard(String values) {
+        String[] tokens = splitInitialBoard(values);
+        int[] cellValues = new int[tokens.length];
         for (int i = 0; i < tokens.length; i++) {
-            int cellValue = parseCellValue(tokens[i], i);
-            if (cellValue != 0) {
-                occupiedCells++;
-            }
-            this.grid[i / size][i % size] = new Cell(cellValue);
+            cellValues[i] = parseCellValue(tokens[i], i);
         }
-        validateInitialBoard(occupiedCells);
+        return cellValues;
     }
 
     /**
@@ -127,11 +135,10 @@ public class Board {
         if (values == null) {
             throw new IllegalArgumentException("Initial board cannot be null");
         }
-        String input = values.trim();
-        if (!input.startsWith("[") || !input.endsWith("]")) {
+        if (!values.startsWith("[") || !values.endsWith("]")) {
             throw new IllegalArgumentException("Initial board must be enclosed in brackets");
         }
-        String[] tokens = input.substring(1, input.length() - 1).split(",", -1);
+        String[] tokens = values.substring(1, values.length() - 1).split(",", -1);
         if (tokens.length != DEFAULT_SIZE * DEFAULT_SIZE) {
             throw new IllegalArgumentException(
                     "Initial board must contain exactly " + (DEFAULT_SIZE * DEFAULT_SIZE) + " cells");
@@ -145,11 +152,28 @@ public class Board {
      * @param value the text for one cell
      * @param index the zero-based cell index, used in validation messages
      * @return the parsed cell value
-     * @throws IllegalArgumentException if the token is not a non-negative integer
-     *                                  or is too large to represent as an int
+     * @throws IllegalArgumentException if the token is not a canonical
+     *                                  non-negative integer, is too large to
+     *                                  represent as an int, or is not 0 or a
+     *                                  power of two below the winning value
      */
     private static int parseCellValue(String value, int index) {
         String token = value.trim();
+        int parsed = parseDecimal(token, index);
+        validateCellValue(parsed, token, index);
+        return parsed;
+    }
+
+    /**
+     * Parses a cell token as a non-negative decimal integer.
+     *
+     * @param token the trimmed cell text
+     * @param index the zero-based cell index, used in validation messages
+     * @return the parsed integer
+     * @throws IllegalArgumentException if the token is not numeric or does not
+     *                                  fit in an int
+     */
+    private static int parseDecimal(String token, int index) {
         if (!token.matches("\\d+")) {
             throw new IllegalArgumentException("Invalid cell value at index " + index + ": " + token);
         }
@@ -158,6 +182,51 @@ public class Board {
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException("Cell value is too large at index " + index, exception);
         }
+    }
+
+    /**
+     * Checks that a parsed value is a canonical, valid cell value.
+     *
+     * @param value the parsed cell value
+     * @param token the original trimmed cell text
+     * @param index the zero-based cell index, used in validation messages
+     * @throws IllegalArgumentException if the token is not canonical or the
+     *                                  value is not a valid tile
+     */
+    private static void validateCellValue(int value, String token, int index) {
+        boolean canonical = token.equals(Integer.toString(value));
+        if (!canonical || !isValidTile(value)) {
+            throw new IllegalArgumentException("Invalid cell value at index " + index + ": " + token);
+        }
+    }
+
+    /**
+     * Checks whether a value is valid for a cell: empty or a power of two
+     * below the winning value.
+     *
+     * @param value the value to check
+     * @return true if the value is 0 or a power of two in [2, WINNING_VALUE)
+     */
+    private static boolean isValidTile(int value) {
+        return value == 0
+                || (value >= 2 && value < WINNING_VALUE && (value & (value - 1)) == 0);
+    }
+
+    /**
+     * Fills the grid with the given cell values.
+     *
+     * @param values the cell values in row-major order
+     * @return the number of non-empty cells
+     */
+    private int fillGrid(int[] values) {
+        int occupiedCells = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != 0) {
+                occupiedCells++;
+            }
+            grid[i / size][i % size] = new Cell(values[i]);
+        }
+        return occupiedCells;
     }
 
     /**

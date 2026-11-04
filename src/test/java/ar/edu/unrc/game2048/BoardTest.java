@@ -49,6 +49,32 @@ public class BoardTest {
     }
 
     @Test
+    public void createBoardFromStringWithTileGreaterThanWinningValue() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[4096,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"));
+    }
+
+    @Test
+    public void createBoardFromStringWithTileFarGreaterThanWinningValue() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[65536,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"));
+    }
+
+    @Test
+    public void createBoardFromStringWithLeadingZeroCellValue() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[00,2,4,0,0,0,0,0,0,0,0,0,0,0,0,0]"));
+    }
+
+    @Test
+    public void createBoardFromStringWithSurroundingWhitespace() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board(" [2,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Board("[2,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0] "));
+    }
+
+    @Test
     public void createBoardFromStringWithAllEmptyCells() {
         assertThrows(IllegalArgumentException.class,
                 () -> new Board("[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"));
