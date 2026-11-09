@@ -16,7 +16,12 @@ public class MainCLI {
         this.board = new Board();
         this.scanner = new Scanner(System.in);
     }
-    
+
+    public MainCLI(String initialBoard) {
+        this.board = new Board(initialBoard);
+        this.scanner = new Scanner(System.in);
+    }
+
     /**
      * Main game loop.
      */
@@ -78,7 +83,20 @@ public class MainCLI {
     }
     
     public static void main(String[] args) {
-        MainCLI game = new MainCLI();
+        if (args.length > 1) {
+            System.err.println("Usage: MainCLI [initial-board]");
+            System.exit(2);
+            return;
+        }
+        MainCLI game;
+        try {
+            game = args.length == 0 ? new MainCLI() : new MainCLI(args[0]);
+        } catch (IllegalArgumentException exception) {
+            System.err.println("Invalid initial board: " + exception.getMessage());
+            System.err.println("Expected format: [0,2,0,...] with exactly 16 valid cell values.");
+            System.exit(2);
+            return;
+        }
         game.play();
     }
 }
