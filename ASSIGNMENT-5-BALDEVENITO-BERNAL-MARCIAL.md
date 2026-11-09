@@ -239,3 +239,148 @@ Tras aplicar las correcciones y la modularización, volvimos a ejecutar
 no reportó errores: los 10.000 casos terminaron como `PASS` (`FAIL: 0`,
 `UNRESOLVED: 0`) y no se registraron fallos en `fails.txt`.
 
+
+
+---
+
+# Ejercicio 2 OASIs
+
+
+Se detallan los resultados obtenidos al aplicar la herramienta **OASIs** (*Oracle Assessment and Improvement System*) a dos casos de estudio en Java: un método aritmético (`Math.abs`) y un método sacado del juego 2048 probado en assigments anteriores (`Cell.mergeWith`).
+
+Los outputs originales estan en **`oasis-output.txt`**
+
+---
+
+## 1. Caso de Estudio 1: `Math.abs(int x)`
+
+
+* **Código a analizar:**
+```java
+public static int abs(int x) {
+    if (x < 0) {
+        return -x;
+    }
+    return x;
+}
+
+```
+
+
+* **Aserción Inicial (Oráculo Débil):**
+`@ensures \result >= 0 && \result >= x;`
+
+---
+
+### Fase 1: Evaluación de Falsos Positivos (Demasiado Fuerte)
+
+* **Diagnóstico de OASIs:** La aserción falla de forma espuria en el caso límite de desbordamiento de enteros de 32 bits (`Integer.MIN_VALUE = -2147483648`). En Java, `-Integer.MIN_VALUE` no se puede representar como entero positivo y retorna `-2147483648`, violando `\result >= 0`.
+* **Caso de Prueba Violatorio Generado:**
+* **Entrada:** `x = -2147483648`
+* **Salida del método:** `-2147483648`
+* **Causa del fallo espurio:** El valor retornado es negativo debido al desbordamiento en complemento a dos, violando la cláusula `\result >= 0` a pesar de ser la ejecución correcta según la especificación de Java.
+
+
+* **Sugerencia del LLM (Adoptada por el usuario):**
+`@ensures (\result >= 0 || \result == Integer.MIN_VALUE) && \result >= x;`
+
+---
+
+### Fase 2: Evaluación de Falsos Negativos (Demasiado Débil)
+
+* **Diagnóstico de OASIs:** La aserción refinada en la Fase 1 exige que la salida sea no-negativa (o el valor mínimo) y mayor/igual a la entrada, pero no impone que el resultado sea exactamente la magnitud absoluta del número.
+* **Mutantes Sobrevivientes Generados:**
+
+| ID | Mutación Introducida | Fragmento del Mutante | Razón de Supervivencia |
+| --- | --- | --- | --- |
+| **M1** | Retorna 0 para entradas negativas | `if (x < 0) return 0;` | `0 >= 0` y `0 >= x` (con $x < 0$). Cumple la aserción sin calcular el valor absoluto. |
+| **M2** | Retorna constante positiva (42) | `if (x < 0) return 42;` | `42 >= 0` y `42 >= x` para todo $x$ negativo. |
+| **M3** | Error de *off-by-one* en negativos | `if (x < 0) return -x + 1;` | `-x + 1` es positivo y mayor a $x$, pero incrementa el resultado en 1. |
+| **M4** | Incremento arbitrario en no-negativos | `return x + 1;` (para $x \ge 0$) | `x + 1 >= 0` y `x + 1 >= x`. Satisface la aserción sin retornar el valor exacto. |
+
+* **Sugerencia de Refinamiento Final (Adoptada por el usuario):**
+`@ensures (x >= 0 && \result == x) || (x < 0 && \result == -x);`
+
+---
+
+## 2. Caso de Estudio 2: `Cell.mergeWith(Cell other)`
+
+
+* **Código a analizar:**
+```java
+public Cell mergeWith(Cell other) {
+    if (!canMergeWith(other)) {
+        throw new IllegalArgumentException(
+            "Cannot merge cells: " + this + " and " + other
+        );
+    }
+    return new Cell(this.value * 2);
+}
+
+```
+
+
+* **Aserción Inicial (inferido Daikon test manuales):**
+`@ensures \result != null && \result.value > this.value && (\result.value == 4 || \result.value == 8);`
+
+---
+
+### Fase 1: Evaluación de Falsos Positivos (Demasiado Fuerte)
+
+* **Diagnóstico de OASIs:** La aserción fue generada por sobre-adaptación (*overfitting*) a una traza de ejecución acotada donde solo se observaron fichas de valor 2 y 4. El método implementa duplicación genérica para cualquier valor de celda válido.
+* **Casos de Prueba Violatorios Generados:**
+* **Test #1:** `this.value = 8`, `other.value = 8` $\rightarrow$ Salida esperada: `Cell(16)`. Fallo: $16 \notin \{4, 8\}$.
+* **Test #2:** `this.value = 16`, `other.value = 16` $\rightarrow$ Salida esperada: `Cell(32)`. Fallo: $32 \notin \{4, 8\}$.
+* **Test #3:** `this.value = 32`, `other.value = 32` $\rightarrow$ Salida esperada: `Cell(64)`. Fallo: $64 \notin \{4, 8\}$.
+
+
+* **Sugerencia del LLM (Adoptada por el usuario):**
+`@ensures \result != null && \result.value == this.value * 2;`
+
+---
+
+### Fase 2: Evaluación de Falsos Negativos (Demasiado Débil)
+
+* **Diagnóstico de OASIs:** La aserción intermedia solo valida la salida del camino feliz. No especifica el comportamiento ante entradas inválidas (`!canMergeWith`), no restringe el tipo de excepción lanzada (`@signals`), no exige la creación de una instancia nueva (frescura de alias) ni garantiza la inmutabilidad de los objetos de entrada (`\old`).
+* **Mutantes Sobrevivientes Generados:**
+
+| ID | Mutación Introducida | Fragmento del Mutante | Razón de Supervivencia |
+| --- | --- | --- | --- |
+| **M1** | Eliminación de la validación de entrada | `public Cell mergeWith(Cell other) { return new Cell(this.value * 2); }` | En ejecuciones no válidas retorna una celda duplicada en lugar de lanzar una excepción. La aserción no especifica casos excepcionales. |
+| **M2** | Tipo de excepción incorrecto | `throw new RuntimeException(...)` en lugar de `IllegalArgumentException` | La postcondición `@ensures` no se evalúa al lanzar excepciones y falta la cláusula `@signals` específica. |
+| **M3** | Mutación de estado y aliasing | `other.value = this.value * 2; return other;` | Modifica `other` y lo retorna en lugar de instanciar un nuevo objeto. La aserción no valida alias (`\result != other`) ni inmutabilidad. |
+
+* **Sugerencia de Refinamiento Final (Adoptada por el usuario):**
+```jml
+@ensures canMergeWith(other) ==> (
+    \result != null && 
+    \result != this && 
+    \result != other && 
+    \result.value == 2 * \old(this.value) && 
+    this.value == \old(this.value) && 
+    (other == null || other.value == \old(other.value))
+);
+@ensures !canMergeWith(other) ==> false;
+@signals (IllegalArgumentException) !canMergeWith(other);
+```
+
+
+
+---
+
+## 3. Matriz Comparativa de Resultados
+
+| Caso de Estudio | Oráculo Inicial | Defecto Detectado en FP | Defecto Detectado en FN | Oráculo Refinado Final (JML) |
+| --- | --- | --- | --- | --- |
+| **`Math.abs`** | `\result >= 0 && \result >= x` | Desbordamiento de entero en `Integer.MIN_VALUE`. | No exige exactitud de valor absoluto (retornos arbitrarios o con offset pasan). | `(x >= 0 && \result == x) || (x < 0 && \result == -x)` |
+| **`Cell.mergeWith`** | `\result.value == 4 || \result.value == 8` | *Overfitting* a datos de prueba (falla para fichas $> 4$). | Falta de precondiciones, excepciones, inmutabilidad y control de alias. | `canMergeWith(other) ==> (\result != null && \result != this && \result != other && \result.value == 2*\old(this.value) ...) @signals (IllegalArgumentException)` |
+
+---
+
+## 4. Evaluación Global del Desempeño de OASIs
+
+La combinación de **generación de casos de prueba** (para Falsos Positivos) y **generación de mutantes** (para Falsos Negativos) permitió corregir las deficiencias típicas de los oráculos de software:
+
+1. **Eliminación del Overfitting:** OASIs detectó que las restricciones constantes (como las inferidas por Daikon en `Cell.mergeWith`) rompen ejecuciones válidas y generó los tests precisos que lo demuestran.
+2. **Fortalecimiento Formal:** Mediante el análisis de mutantes sobrevivientes, la herramienta guio al desarrollador desde aserciones débiles de ordenamiento hacia contratos de especificación completos en JML (incluyendo cláusulas `@signals`, `\old` y condiciones de aliasing).
+3. **Control del Desarrollador:** En ambos casos de estudio, la estructura interactiva permitió al usuario evaluar el diagnóstico de cada fase antes de aplicar las modificaciones propuestas.

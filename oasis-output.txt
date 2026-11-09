@@ -1,0 +1,193 @@
+================================================================================
+                      OASIS TOOL - ORACLE REFINEMENT
+================================================================================
+
+[+] Code to analyze:
+public static int abs(int x) {
+    if (x < 0) {
+        return -x;
+    }
+    return x;
+}
+
+[+] Initial assertion:
+    `@ensures \result >= 0 && \result >= x;`
+
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+
+DIAGNOSIS: The assertion is a FALSE POSITIVE (too restrictive).
+Explanation: The assertion requires the result to be non-negative (\result >= 0) and greater than or equal to the input (\result >= x). For x = Integer.MIN_VALUE (-2147483648), the mathematical absolute value would be 2147483648, which overflows the int range and wraps to -2147483648. The method correctly returns this overflowed value per Java's two's complement semantics, but the assertion fails because the result is negative, violating \result >= 0. The second condition (\result >= x) holds (equality). Thus, the assertion is too strong for this edge case.
+
+Generated test cases that violate the assertion on valid executions:
+   Test #1:
+     - Inputs: x = -2147483648 (Integer.MIN_VALUE)
+     - Expected valid output: -2147483648
+     - Spurious failure reason: The result is negative due to integer overflow, violating \result >= 0. The method's behavior is correct per Java specification for abs(Integer.MIN_VALUE).
+
+LLM refinement suggestion:
+   `@ensures (\result >= 0 || \result == Integer.MIN_VALUE) && \result >= x;`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1
+Assertion updated to: `@ensures (\result >= 0 || \result == Integer.MIN_VALUE) && \result >= x;`
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+
+DIAGNOSIS: The assertion is a FALSE NEGATIVE (too weak).
+Explanation: The current assertion only requires the result to be non-negative (or Integer.MIN_VALUE) and greater than or equal to the input. It does not enforce that the result is exactly the absolute value of the input (i.e., -x for negative x, x for non-negative x). This allows mutants that return arbitrary non-negative values for negative inputs, or values larger than the input for non-negative inputs, to satisfy the assertion.
+
+Generated mutants that SURVIVE the current assertion:
+   - [M1] Returns 0 for all negative inputs (including Integer.MIN_VALUE) instead of -x.
+     Mutated code:
+       public static int abs(int x) {
+    if (x < 0) {
+        return 0;
+    }
+    return x;
+}
+     Why it survives: For negative x, the mutant returns 0 which is >=0 and >= x (since x is negative). For non-negative x, it returns x which satisfies both conditions. The assertion does not require the result to be exactly -x for negative x.
+
+   - [M2] Returns a constant positive value (42) for all negative inputs.
+     Mutated code:
+       public static int abs(int x) {
+    if (x < 0) {
+        return 42;
+    }
+    return x;
+}
+     Why it survives: For any negative x, 42 is >=0 and >= x. The assertion does not check that the result equals -x.
+
+   - [M3] Returns -x + 1 for negative inputs (off-by-one error).
+     Mutated code:
+       public static int abs(int x) {
+    if (x < 0) {
+        return -x + 1;
+    }
+    return x;
+}
+     Why it survives: For negative x, -x+1 is positive (or zero for x=-1) and >= x. The assertion only requires non-negativity and >= x, not exact equality to -x.
+
+   - [M4] Returns x+1 for non-negative inputs.
+     Mutated code:
+       public static int abs(int x) {
+    if (x < 0) {
+        return -x;
+    }
+    return x + 1;
+}
+     Why it survives: For non-negative x, x+1 is >=0 and >= x. The assertion does not require the result to be exactly x for non-negative inputs.
+
+
+LLM refinement suggestion:
+   `@ensures (x >= 0 && \result == x) || (x < 0 && \result == -x);`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1
+Final assertion updated to: `@ensures (x >= 0 && \result == x) || (x < 0 && \result == -x);`
+
+================================================================================
+FINAL ORACLE REFINEMENT RESULT
+================================================================================
+Final Assertion Approved by the User:
+`@ensures (x >= 0 && \result == x) || (x < 0 && \result == -x);`
+
+
+================================================================================
+                      OASIS TOOL - ORACLE REFINEMENT
+================================================================================
+
+[+] Code to analyze:
+public Cell mergeWith(Cell other) {
+    if (!canMergeWith(other)) {
+        throw new IllegalArgumentException(
+            "Cannot merge cells: " + this + " and " + other
+        );
+    }
+    return new Cell(this.value * 2);
+}
+
+[+] Initial assertion:
+    `@ensures \result != null && \result.value > this.value && (\result.value == 4 || \result.value == 8);`
+
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+
+DIAGNOSIS: The assertion is a FALSE POSITIVE (too restrictive).
+Explanation: The assertion is too strong because it hardcodes the output to 4 or 8, implying this.value can only be 2 or 4. The code implements generic doubling: return new Cell(this.value * 2), with no bound on this.value, only a guard via canMergeWith(other). For any legitimate mergeable cell with value >= 8, e.g. 8, 16, 32, the returned value is 16, 32, 64 respectively, which violates (\result.value == 4 || \result.value == 8) despite being the correct behavior required by the code. The hardcoded range is not enforced by the implementation.
+
+Generated test cases that violate the assertion on valid executions:
+   Test #1:
+     - Inputs: this.value = 8, other.value = 8, canMergeWith(other) == true
+     - Expected valid output: new Cell(16) with \result.value == 16
+     - Spurious failure reason: 16 is neither 4 nor 8, so (\result.value == 4 || \result.value == 8) fails spuriously even though 16 == 8 * 2 is the correct result
+   Test #2:
+     - Inputs: this.value = 16, other.value = 16, canMergeWith(other) == true
+     - Expected valid output: new Cell(32) with \result.value == 32
+     - Spurious failure reason: 32 is neither 4 nor 8, so the disjunction fails spuriously even though 32 == 16 * 2 is the correct result
+   Test #3:
+     - Inputs: this.value = 32, other.value = 32, canMergeWith(other) == true
+     - Expected valid output: new Cell(64) with \result.value == 64
+     - Spurious failure reason: 64 is neither 4 nor 8, so the assertion fails spuriously on a legitimate larger tile
+
+LLM refinement suggestion:
+   `@ensures \result != null && \result.value == this.value * 2;`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1
+Assertion updated to: `@ensures \result != null && \result.value == this.value * 2;`
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+
+DIAGNOSIS: The assertion is a FALSE NEGATIVE (too weak).
+Explanation: The assertion only checks the happy-path return value on normal termination: \result != null && \result.value == this.value * 2. It imposes no precondition or requirement linking success to canMergeWith(other), no @signals clause for the !canMergeWith(other) case, no freshness/aliasing condition requiring a newly allocated cell distinct from this and other, and no frame/immutability condition using \old to require this and other unchanged and the doubled value to be based on the original this.value. Consequently implementations that return a correctly doubled cell when they should throw, throw the wrong exception, or obtain that cell by mutating/aliasing an input still satisfy the assertion, so it is too weak and produces false negatives.
+
+Generated mutants that SURVIVE the current assertion:
+   - [M1] Remove the canMergeWith guard entirely so the method always returns a doubled cell instead of throwing when merging is not allowed.
+     Mutated code:
+       public Cell mergeWith(Cell other) { return new Cell(this.value * 2); }
+     Why it survives: When canMergeWith(other) is false the mutant returns normally with a non-null result whose value is this.value * 2. The current assertion has no requires/signals or implication for the !canMergeWith(other) case, so it does not detect that anIllegalArgumentException should have been thrown.
+
+   - [M2] Throw the wrong exception type when merging is not allowed.
+     Mutated code:
+       public Cell mergeWith(Cell other) { if (!canMergeWith(other)) { throw new RuntimeException("Cannot merge cells: " + this + "and " + other); } return new Cell(this.value * 2); }
+     Why it survives: The assertion contains no @signals clause specifying IllegalArgumentException. On exceptional termination the@ensures clause is not applied to a result, so replacing IllegalArgumentException with RuntimeException is not detected.
+
+   - [M3] Return the aliased input other after mutating it, instead of returning a fresh Cell and leaving inputs unchanged.
+     Mutated code:
+       public Cell mergeWith(Cell other) { if (!canMergeWith(other)) { throw new IllegalArgumentException("Cannot merge cells: " + this + " and " + other); } other.value = this.value * 2; return other; }
+     Why it survives: \result is non-null and \result.value == this.value * 2, but the assertion does not require \result != other,\result != this, fresh allocation, or other.value == \old(other.value) and this.value == \old(this.value). The aliasing and side-effect fault therefore passes.
+
+
+LLM refinement suggestion:
+   `@ensures canMergeWith(other) ==> (\result != null && \result != this && \result != other && \result.value == 2 * \old(this.value) && this.value == \old(this.value) && (other == null || other.value == \old(other.value))); @ensures !canMergeWith(other) ==> false; @signals (IllegalArgumentException) !canMergeWith(other);`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1
+Final assertion updated to: `@ensures canMergeWith(other) ==> (\result != null && \result != this && \result != other && \result.value == 2 * \old(this.value) && this.value == \old(this.value) && (other == null || other.value == \old(other.value))); @ensures !canMergeWith(other) ==> false; @signals (IllegalArgumentException) !canMergeWith(other);`
+
+================================================================================
+FINAL ORACLE REFINEMENT RESULT
+================================================================================
+Final Assertion Approved by the User:
+`@ensures canMergeWith(other) ==> (\result != null && \result != this && \result != other && \result.value == 2 * \old(this.value) && this.value == \old(this.value) && (other == null || other.value == \old(other.value))); @ensures !canMergeWith(other) ==> false; @signals (IllegalArgumentException) !canMergeWith(other);`
