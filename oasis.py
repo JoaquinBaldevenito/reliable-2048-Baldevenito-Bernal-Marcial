@@ -7,7 +7,7 @@ Refines test oracles and postconditions/contracts using an LLM through OpenRoute
 Requires Python 3.8+, requests, and LLM_API_KEY.
 
 Usage:
-  python3 oasis.py [--case 1|2|3] [--model MODEL_NAME]
+  python3 oasis.py [--case 1|2|3] [--model MODEL_NAME] [--max-iterations N]
 """
 
 import os
@@ -23,74 +23,63 @@ class OASIsEngine:
     PROMPTS = {
         "fp": {
             "system": (
-                "You are OASIs, an expert system in formal software verification and oracle refinement. "
-                "Your task is to analyze whether an assertion/contract is a FALSE POSITIVE (too strong or restrictive). "
-                "You MUST respond strictly in valid JSON format."
+                "You are OASIs, an oracle refinement tool. "
+                "Your feedback is concrete tests, not explanations. "
+                "Respond only with valid JSON, without markdown or extra text."
             ),
-            "task": """Analyze the following {language} code and its associated assertion:
-
-Code:
+            "task": """{language} program:
 ```
 {code}
 ```
 
-Current assertion:
-`{assertion}`
+Assertion: `{assertion}`
 
-Instructions:
-1. Determine whether the assertion is a FALSE POSITIVE (too strong / restrictive).
-2. If it is too strong, generate concrete test cases (program inputs and expected valid outputs) that make the assertion fail incorrectly.
-3. Propose a refined assertion (relaxed/adequate) that does not fail on legitimate cases.
+Is the assertion a FALSE POSITIVE (too strong), i.e. does it fail on some correct execution of the program?
+If it is, write up to 3 JUnit tests that call the program with a concrete input and check the assertion
+with assertTrue. Each test must compile and must fail on the program exactly as given.
+Do not invent behavior: compute the real output of the program for each input.
 
-Respond ONLY with a valid JSON object using this exact format:
+Respond with this JSON object:
 {{
-  "is_false_positive": true,
-  "explanation": "Detailed explanation of why the assertion is a false positive",
-  "violating_test_cases": [
-     {{
-       "test_inputs": "Description or code of the input values",
-       "expected_valid_output": "Correct result returned by the code",
-       "assertion_failure_reason": "Reason why the assertion fails spuriously"
-     }}
+  "is_false_positive": <true or false>,
+  "tests": [
+    {{
+      "code": "@Test void name() {{ ... }}",
+      "reason": "input -> real output, and the part of the assertion that fails (one line)"
+    }}
   ],
-  "suggested_assertion": "Suggested refined assertion"
+  "suggested_assertion": "weaker assertion that accepts these executions, or empty"
 }}
 """,
         },
         "fn": {
             "system": (
-                "You are OASIs, an expert system in mutation testing and oracle refinement. "
-                "Your task is to analyze whether an assertion/contract is a FALSE NEGATIVE (too weak or incomplete). "
-                "You MUST respond strictly in valid JSON format."
+                "You are OASIs, an oracle refinement tool. "
+                "Your feedback is concrete mutants, not explanations. "
+                "Respond only with valid JSON, without markdown or extra text."
             ),
-            "task": """Analyze the following {language} code and its associated assertion:
-
-Code:
+            "task": """{language} program:
 ```
 {code}
 ```
 
-Current assertion:
-`{assertion}`
+Assertion: `{assertion}`
 
-Instructions:
-1. Determine whether the assertion is a FALSE NEGATIVE (too weak / incomplete).
-2. If it is too weak, generate MUTANTS of the code (logic-error modifications) that STILL SATISFY the assertion (surviving mutants).
-3. Propose a refined assertion (strengthened) that is able to kill these mutants.
+Is the assertion a FALSE NEGATIVE (too weak), i.e. is there a faulty version of the program that it cannot detect?
+If it is, write up to 3 mutants: the complete method with one small logic change.
+Each mutant must compile and must satisfy the assertion on every input while returning a wrong result on at least one.
+Check the mutant against the assertion on edge cases before including it.
 
-Respond ONLY with a valid JSON object using this exact format:
+Respond with this JSON object:
 {{
-  "is_false_negative": true,
-  "explanation": "Detailed explanation of why the assertion is incomplete",
-  "surviving_mutants": [
-     {{
-       "mutant_id": "M1",
-       "description": "Description of the introduced fault or mutation",
-       "mutated_code": "Code or fragment of the mutant",
-       "why_it_survives": "Explanation of why the current assertion does not detect this fault"
-     }}
+  "is_false_negative": <true or false>,
+  "mutants": [
+    {{
+      "code": "complete mutated method",
+      "reason": "input -> wrong output that the assertion still accepts (one line)"
+    }}
   ],
-  "suggested_assertion": "Suggested strengthened assertion"
+  "suggested_assertion": "stronger assertion that kills these mutants, or empty"
 }}
 """,
         },
@@ -122,7 +111,10 @@ Respond ONLY with a valid JSON object using this exact format:
             response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=120)
             response.raise_for_status()
             res_data = response.json()
-            return res_data["choices"][0]["message"].get("content", "")
+            content = res_data["choices"][0]["message"].get("content") or ""
+            if not content.strip():
+                raise RuntimeError("EMPTY RESPONSE: the model returned no content. Try again or use another --model.")
+            return content
         except requests.exceptions.Timeout:
             raise RuntimeError(
                 "TIMEOUT: the LLM API did not respond within 120 seconds. "
@@ -136,7 +128,7 @@ Respond ONLY with a valid JSON object using this exact format:
             elif status == 429:
                 reason = "RATE LIMIT OR TOKEN QUOTA EXHAUSTED (HTTP 429): slow down or check your limits."
             elif status == 401:
-                reason = "INVALID API KEY (HTTP 401): check OPENROUTER_API_KEY."
+                reason = "INVALID API KEY (HTTP 401): check LLM_API_KEY."
             elif status == 404:
                 reason = f"MODEL NOT FOUND (HTTP 404): '{self.model}' is unavailable or no longer offered. Try another --model."
             elif status == 400 and "context" in error_body.lower():
@@ -146,22 +138,38 @@ Respond ONLY with a valid JSON object using this exact format:
             raise RuntimeError(f"{reason} Details: {error_body}")
         except requests.exceptions.ConnectionError as e:
             raise RuntimeError(f"CONNECTION ERROR: could not reach the LLM API. Details: {str(e)}")
+        except RuntimeError:
+            raise
         except Exception as e:
             raise RuntimeError(f"UNEXPECTED API ERROR: {str(e)}")
+
+    @staticmethod
+    def _parse_json(text):
+        """Extracts the JSON object from the answer, even if the model wraps it in markdown."""
+        start, end = text.find("{"), text.rfind("}")
+        if start == -1 or end < start:
+            raise RuntimeError(f"INVALID RESPONSE: the model did not return JSON. Answer: {text[:300]}")
+        try:
+            return json.loads(text[start : end + 1])
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"INVALID RESPONSE: malformed JSON ({e}). Answer: {text[:300]}")
 
     def analyze(self, kind, code, assertion, language="Java"):
         cfg = self.PROMPTS[kind]
         prompt = cfg["task"].format(language=language, code=code, assertion=assertion)
-        return json.loads(self._call_llm(cfg["system"], prompt))
-
-    def analyze_false_positive(self, code, assertion, language="Java"):
-        return self.analyze("fp", code, assertion, language)
-
-    def analyze_false_negative(self, code, assertion, language="Java"):
-        return self.analyze("fn", code, assertion, language)
+        return self._parse_json(self._call_llm(cfg["system"], prompt))
 
 
-def ask_refinement(current_assertion, suggestion, final=False):
+def print_feedback(label, items):
+    """Prints each generated test or mutant as code followed by a one-line reason."""
+    for idx, item in enumerate(items, 1):
+        print(f"[{label} #{idx}] {item.get('reason', '')}")
+        for line in str(item.get("code", "")).splitlines():
+            print(f"    {line}")
+        print()
+
+
+def ask_refinement(current_assertion, suggestion):
     print(f"\nLLM refinement suggestion:\n   `{suggestion}`")
     print("\n[User Feedback - Make a decision]")
     print("  1. Accept the LLM suggestion")
@@ -170,79 +178,93 @@ def ask_refinement(current_assertion, suggestion, final=False):
     choice = input("Select option (1/2/3): ").strip()
 
     if choice == "1" and suggestion:
-        print(f"Final assertion updated to: `{suggestion}`" if final else f"Assertion updated to: `{suggestion}`")
+        print(f"Assertion updated to: `{suggestion}`")
         return suggestion
     if choice == "2":
         value = input("Enter your refined assertion: ").strip()
-        print(f"Final assertion updated to: `{value}`" if final else f"Assertion manually updated to: `{value}`")
-        return value
+        if value:
+            print(f"Assertion manually updated to: `{value}`")
+            return value
     print("The current assertion is kept.")
     return current_assertion
 
 
-def run_interactive_session(code, initial_assertion, api_key, base_url, model):
+# Each phase: (title, result key for the feedback, label, header shown when there is feedback, message when there is none)
+PHASES = {
+    "fp": (
+        "False Positive Assessment (Is the assertion too strong?)",
+        "is_false_positive", "tests", "Test",
+        "FALSE POSITIVE: these tests fail on the correct program.",
+        "No test was found that breaks the assertion on a correct execution.",
+    ),
+    "fn": (
+        "False Negative Assessment (Is the assertion too weak?)",
+        "is_false_negative", "mutants", "Mutant",
+        "FALSE NEGATIVE: these mutants survive the assertion.",
+        "No mutant was found that survives the assertion.",
+    ),
+}
+
+
+def run_phase(engine, kind, number, code, assertion):
+    """Runs one phase and returns the assertion the user keeps after seeing the feedback."""
+    title, flag, key, label, found, not_found = PHASES[kind]
+    print("\n" + "-" * 50)
+    print(f"PHASE {number}: {title}")
+    print("-" * 50)
+
+    try:
+        res = engine.analyze(kind, code, assertion)
+    except Exception as e:
+        print(f"Error during the analysis: {e}")
+        return assertion
+
+    items = res.get(key, [])
+    if not (res.get(flag, False) and items):
+        print(not_found)
+        return assertion
+
+    print(f"\n{found}\n")
+    print_feedback(label, items)
+    return ask_refinement(assertion, res.get("suggested_assertion", ""))
+
+
+def run_interactive_session(code, initial_assertion, api_key, base_url, model, max_iterations=3):
     engine = OASIsEngine(api_key=api_key, base_url=base_url, model=model)
-    current_assertion = initial_assertion
+    history = [initial_assertion]
 
     print("\n" + "=" * 80)
     print("                      OASIS TOOL - ORACLE REFINEMENT")
     print("=" * 80)
     print(f"\n[+] Code to analyze:\n{code}\n")
-    print(f"[+] Initial assertion:\n    `{current_assertion}`\n")
+    print(f"[+] Initial assertion:\n    `{initial_assertion}`\n")
 
-    print("\n" + "-" * 50)
-    print("PHASE 1: False Positive Assessment (Is the assertion too strong?)")
-    print("-" * 50)
+    # A refinement can make the assertion too strong or too weak again,
+    # so both phases are repeated on the new assertion until it stops changing.
+    for iteration in range(1, max_iterations + 1):
+        print("\n" + "=" * 80)
+        print(f"ITERATION {iteration}  -  assertion: `{history[-1]}`")
+        print("=" * 80)
 
-    try:
-        fp_res = engine.analyze_false_positive(code, current_assertion)
-        if fp_res.get("is_false_positive", False):
-            print("\nDIAGNOSIS: The assertion is a FALSE POSITIVE (too restrictive).")
-            print(f"Explanation: {fp_res.get('explanation')}\n")
+        start = history[-1]
+        assertion = run_phase(engine, "fp", 1, code, start)
+        assertion = run_phase(engine, "fn", 2, code, assertion)
+        if assertion == start:
+            print("\nThe assertion did not change in this iteration: refinement finished.")
+            break
+        history.append(assertion)
 
-            test_cases = fp_res.get("violating_test_cases", [])
-            if test_cases:
-                print("Generated test cases that violate the assertion on valid executions:")
-                for idx, tc in enumerate(test_cases, 1):
-                    print(f"   Test #{idx}:")
-                    print(f"     - Inputs: {tc.get('test_inputs')}")
-                    print(f"     - Expected valid output: {tc.get('expected_valid_output')}")
-                    print(f"     - Spurious failure reason: {tc.get('assertion_failure_reason')}")
-
-            current_assertion = ask_refinement(current_assertion, fp_res.get("suggested_assertion", ""))
-        else:
-            print("The assertion does not appear to be a false positive (it is not excessively restrictive).")
-    except Exception as e:
-        print(f"Error during the False Positive analysis: {e}")
-
-    print("\n" + "-" * 50)
-    print("PHASE 2: False Negative Assessment (Is the assertion too weak?)")
-    print("-" * 50)
-
-    try:
-        fn_res = engine.analyze_false_negative(code, current_assertion)
-        if fn_res.get("is_false_negative", False):
-            print("\nDIAGNOSIS: The assertion is a FALSE NEGATIVE (too weak).")
-            print(f"Explanation: {fn_res.get('explanation')}\n")
-
-            mutants = fn_res.get("surviving_mutants", [])
-            if mutants:
-                print("Generated mutants that SURVIVE the current assertion:")
-                for m in mutants:
-                    print(f"   - [{m.get('mutant_id')}] {m.get('description')}")
-                    print(f"     Mutated code:\n       {m.get('mutated_code')}")
-                    print(f"     Why it survives: {m.get('why_it_survives')}\n")
-
-            current_assertion = ask_refinement(current_assertion, fn_res.get("suggested_assertion", ""), final=True)
-        else:
-            print("The assertion does not appear to be a false negative (it is sufficiently restrictive).")
-    except Exception as e:
-        print(f"Error during the False Negative analysis: {e}")
+        if iteration == max_iterations:
+            print(f"\nReached the maximum of {max_iterations} iterations.")
+        elif input("\nCheck the new assertion again? (y/n): ").strip().lower() != "y":
+            break
 
     print("\n" + "=" * 80)
     print("FINAL ORACLE REFINEMENT RESULT")
     print("=" * 80)
-    print(f"Final Assertion Approved by the User:\n`{current_assertion}`\n")
+    for idx, assertion in enumerate(history):
+        print(f"  {'Initial' if idx == 0 else f'After iteration {idx}'}: `{assertion}`")
+    print(f"\nFinal Assertion Approved by the User:\n`{history[-1]}`\n")
 
 
 CASE_STUDY_1 = {
@@ -291,6 +313,7 @@ def main():
     parser.add_argument("--case", choices=["1", "2", "3"], help="Run one of the predefined case studies (1, 2 or 3)")
     parser.add_argument("--model", default="nvidia/nemotron-3-ultra-550b-a55b:free", help="LLM model to use")
     parser.add_argument("--base-url", default="https://openrouter.ai/api/v1", help="LLM API base URL")
+    parser.add_argument("--max-iterations", type=int, default=3, help="Maximum refinement iterations")
     args = parser.parse_args()
 
     api_key = os.getenv("LLM_API_KEY")
@@ -304,7 +327,7 @@ def main():
     if args.case:
         case = CASES[args.case]
         print(f"\nRunning {case['title']}...")
-        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model)
+        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model, args.max_iterations)
         return
 
     print("\nSelect execution mode:")
@@ -316,7 +339,7 @@ def main():
 
     if opt in CASES:
         case = CASES[opt]
-        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model)
+        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model, args.max_iterations)
     elif opt == "4":
         print("\nEnter the program code (press Ctrl+D or type END on a line to finish):")
         lines = []
@@ -330,7 +353,7 @@ def main():
                 break
         user_code = "\n".join(lines)
         user_assertion = input("Enter the current assertion: ").strip()
-        run_interactive_session(user_code, user_assertion, api_key, args.base_url, args.model)
+        run_interactive_session(user_code, user_assertion, api_key, args.base_url, args.model, args.max_iterations)
     else:
         print("Invalid option.")
 
