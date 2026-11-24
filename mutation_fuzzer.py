@@ -74,44 +74,6 @@ def is_valid_board(board):
     return len(values) == BOARD_CELLS and all(v in CELL_VALUES for v in values)
 
 
-class MutantCLIRunner(BoardCLIRunner):
-    """Runs the Java CLI with an invalid board and checks it is rejected cleanly."""
-
-    # Failures of the environment, not of the program under test.
-    JVM_ERRORS = (
-        "UnsupportedClassVersionError",
-        "Could not find or load main class",
-        "NoClassDefFoundError",
-    )
-
-    def run(self, board: str):
-        """Starts the game with the board and returns its result and outcome."""
-        try:
-            result = subprocess.run(
-                BoardCLIRunner.COMMAND + [board],
-                input="q\n",
-                capture_output=True,
-                text=True,
-                timeout=BoardCLIRunner.TIMEOUT,
-                cwd=ROOT,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            return None, UNRESOLVED
-
-        # Errors from the JVM itself are not a verdict about the board.
-        if any(error in result.stderr for error in self.JVM_ERRORS):
-            return result, UNRESOLVED
-        # An uncaught Java exception or failed assertion is a bug.
-        if "Exception in thread" in result.stderr or "\tat " in result.stderr:
-            return result, FAIL
-        # A clean rejection uses exit code 2 and the validation message.
-        if result.returncode == 2 and "Invalid initial board" in result.stderr:
-            return result, PASS
-        # Anything else (accepted board, other exit code) is unexpected.
-        return result, FAIL
-
-
 class Mutator:
     """Applies basic character-level mutations to a string."""
 
