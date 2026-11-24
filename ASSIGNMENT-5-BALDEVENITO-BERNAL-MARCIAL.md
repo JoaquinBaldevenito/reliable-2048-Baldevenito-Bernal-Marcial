@@ -245,6 +245,8 @@ no reportó errores: los 10.000 casos terminaron como `PASS` (`FAIL: 0`,
 
 # Ejercicio 2: OASIs
 
+Es una tecnica y una herramienta para evaluar que tan bueno es un oraculo y mejorarlo. Basicamente, toma una asercion ya escrita y busca donde falla.
+
 Una aserción puede fallar de dos maneras:
 
 - **Demasiado fuerte (falso positivo):** falla aunque el programa funcione bien.
@@ -259,7 +261,7 @@ decisión de cambiar la aserción la toma siempre el usuario.
 ## Cómo usarlo
 
 Necesita una API key gratuita de [OpenRouter](https://openrouter.ai/keys) en la
-variable `LLM_API_KEY`. Por defecto usa el modelo gratuito
+variable `LLM_API_KEY`. Usamos el modelo gratuito
 `nvidia/nemotron-3-ultra-550b-a55b:free`.
 
 ```bash
@@ -303,6 +305,8 @@ Las salidas completas están en `oasis-output.txt`.
 
 ### Caso 1: `abs`
 
+Se corre con `python3 oasis.py --case 1`.
+
 ```java
 public static int abs(int x) {
     if (x < 0) {
@@ -325,7 +329,38 @@ para los positivos. Revisándolos, vimos que no sobreviven del todo: la aserció
 los detecta con `MIN_VALUE` y con `MAX_VALUE`, respectivamente. Por eso no los
 tomamos en cuenta.
 
+#### Corrida con la versión que itera
+
+Volvimos a correr el caso con la versión nueva. En la primera vuelta, la
+aserción terminó en `(\result == x && x >= 0) || (\result == -x && x < 0)`. La
+segunda vuelta revisó esa aserción y no encontró nada:
+
+```
+ITERATION 2  -  assertion: `(\result == x && x >= 0) || (\result == -x && x < 0)`
+
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+No test was found that breaks the assertion on a correct execution.
+
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+No mutant was found that survives the assertion.
+
+The assertion did not change in this iteration: refinement finished.
+
+FINAL ORACLE REFINEMENT RESULT
+  Initial: `@ensures \result >= 0 && \result >= x;`
+  After iteration 1: `(\result == x && x >= 0) || (\result == -x && x < 0)`
+```
+
+- **No hay tests que la rompan:** la aserción ya no es demasiado fuerte.
+  Funciona incluso con `MIN_VALUE`, porque ahí `-x` también da `MIN_VALUE`.
+- **No hay mutantes que sobrevivan:** ya no es demasiado débil, porque fija el
+  resultado exacto para cada `x`.
+- **La aserción no cambió en la segunda vuelta**, así que OASIs terminó solo.
+  Esta segunda revisión es justamente para lo que sirve iterar.
+
 ### Caso 2: `Cell.mergeWith`, con un contrato de Daikon
+
+Se corre con `python3 oasis.py --case 2`.
 
 ```java
 public Cell mergeWith(Cell other) {
@@ -353,6 +388,40 @@ fusionaban 2 + 2 y 4 + 4, y Daikon generalizó de más.
 El LLM también propuso un mutante que modifica `other.value`, pero no compila
 porque `value` es `private final`. Por el mismo motivo, las condiciones de
 inmutabilidad que sugirió (`\old(...)`) no hacen falta: `Cell` ya es inmutable.
+
+### Caso 3: `Movement.mergeCells`, fusionar una fila
+
+Se corre con `python3 oasis.py --case 3`.
+
+Es el corazón del 2048: recibe las fichas de una fila (sin los vacíos) y fusiona
+las vecinas iguales. Por ejemplo, `[2, 2, 4]` queda `[4, 4]` y suma 4 puntos.
+
+```java
+private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+    List<Cell> merged = new ArrayList<>();
+    int k = 0;
+    while (k < nonEmpty.size()) {
+        if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+            Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+            merged.add(mergedCell);
+            scoreDelta[0] += mergedCell.getValue();
+            k += 2;
+        } else {
+            merged.add(nonEmpty.get(k));
+            k++;
+        }
+    }
+    return merged;
+}
+```
+
+La aserción inicial es `\result.size() < nonEmpty.size()`: "al mover, siempre se
+fusiona algo". Es demasiado fuerte, porque una fila como `[2, 4]` no tiene nada
+que fusionar. Y si se la relaja a `<=`, queda demasiado débil: no detecta el
+error clásico del 2048, la doble fusión, donde `[2, 2, 4]` termina en `[8]` en
+vez de `[4, 4]`.
+
+> Pendiente: completar con la corrida de OASIs.
 
 ## Conclusiones
 
