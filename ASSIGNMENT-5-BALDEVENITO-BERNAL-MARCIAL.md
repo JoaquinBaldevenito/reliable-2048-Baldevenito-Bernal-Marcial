@@ -243,19 +243,66 @@ no reportó errores: los 10.000 casos terminaron como `PASS` (`FAIL: 0`,
 
 ---
 
-# Ejercicio 2 OASIs
+# Ejercicio 2: OASIs
 
+Una aserción puede fallar de dos maneras:
 
-Se detallan los resultados obtenidos al aplicar la herramienta **OASIs** (*Oracle Assessment and Improvement System*) a dos casos de estudio en Java: un método aritmético (`Math.abs`) y un método sacado del juego 2048 probado en assigments anteriores (`Cell.mergeWith`).
+- **Demasiado fuerte (falso positivo):** falla aunque el programa funcione bien.
+- **Demasiado débil (falso negativo):** no falla aunque el programa tenga un error.
 
-Los outputs originales estan en **`oasis-output.txt`**
+`oasis.py` es nuestra versión simple de OASIs. Le pasa al LLM el código y la
+aserción, y le pide dos cosas: un **test** que demuestre que la aserción es
+demasiado fuerte, y un **mutante** (el método con un error metido a propósito)
+que demuestre que es demasiado débil. Ese test o ese mutante es el feedback. La
+decisión de cambiar la aserción la toma siempre el usuario.
 
----
+## Cómo usarlo
 
-## 1. Caso de Estudio 1: `Math.abs(int x)`
+Necesita una API key gratuita de [OpenRouter](https://openrouter.ai/keys) en la
+variable `LLM_API_KEY`. Por defecto usa el modelo gratuito
+`nvidia/nemotron-3-ultra-550b-a55b:free`.
 
+```bash
+echo 'LLM_API_KEY=sk-or-...' > .env      # .env está en el .gitignore
+set -a; source .env; set +a
+python3 oasis.py --case 1                # o --case 2, --case 3
+```
 
-* **Código a analizar:**
+Sin `--case`, el programa muestra un menú donde también se puede cargar código y
+una aserción propios. Con `--max-iterations N` se cambia el máximo de vueltas
+(por defecto, 3).
+
+## Cómo funciona
+
+1. **Fase 1:** el LLM busca tests que rompan la aserción con el programa correcto.
+2. **Fase 2:** el LLM busca mutantes que la aserción no detecte.
+3. Después de cada fase, el usuario elige: aceptar la aserción que sugiere el
+   LLM, escribir una propia o quedarse con la actual.
+4. Si la aserción cambió, se repiten las dos fases sobre la nueva. Termina cuando
+   ya no cambia, cuando el usuario decide cortar o al llegar al máximo.
+
+La repetición importa porque, al reforzar una aserción en la Fase 2, puede quedar
+demasiado fuerte, y solo otra Fase 1 lo detecta.
+
+La salida muestra el test o el mutante como código y una línea con el motivo:
+
+```
+FALSE POSITIVE: these tests fail on the correct program.
+
+[Test #1] abs(MIN_VALUE) -> MIN_VALUE, fails \result >= 0
+    @Test void minValue() {
+        assertTrue(abs(Integer.MIN_VALUE) >= 0);
+    }
+```
+
+Al final muestra cómo fue cambiando la aserción en cada vuelta.
+
+## Casos de estudio
+
+Las salidas completas están en `oasis-output.txt`.
+
+### Caso 1: `abs`
+
 ```java
 public static int abs(int x) {
     if (x < 0) {
@@ -263,50 +310,23 @@ public static int abs(int x) {
     }
     return x;
 }
-
 ```
 
+| Paso | Aserción | Qué encontró OASIs |
+| --- | --- | --- |
+| Inicial | `\result >= 0 && \result >= x` | |
+| Fase 1 | | Test: `abs(Integer.MIN_VALUE)` devuelve `MIN_VALUE` por desbordamiento, así que `\result >= 0` falla con el programa correcto. |
+| Aceptada | `(\result >= 0 \|\| \result == Integer.MIN_VALUE) && \result >= x` | |
+| Fase 2 | | Mutantes que devuelven `0` o `42` para los negativos: la aserción los acepta. |
+| Final | `(x >= 0 && \result == x) \|\| (x < 0 && \result == -x)` | |
 
-* **Aserción Inicial (Oráculo Débil):**
-`@ensures \result >= 0 && \result >= x;`
+El LLM también propuso otros dos mutantes: `-x + 1` para los negativos y `x + 1`
+para los positivos. Revisándolos, vimos que no sobreviven del todo: la aserción
+los detecta con `MIN_VALUE` y con `MAX_VALUE`, respectivamente. Por eso no los
+tomamos en cuenta.
 
----
+### Caso 2: `Cell.mergeWith`, con un contrato de Daikon
 
-### Fase 1: Evaluación de Falsos Positivos (Demasiado Fuerte)
-
-* **Diagnóstico de OASIs:** La aserción falla de forma espuria en el caso límite de desbordamiento de enteros de 32 bits (`Integer.MIN_VALUE = -2147483648`). En Java, `-Integer.MIN_VALUE` no se puede representar como entero positivo y retorna `-2147483648`, violando `\result >= 0`.
-* **Caso de Prueba Violatorio Generado:**
-* **Entrada:** `x = -2147483648`
-* **Salida del método:** `-2147483648`
-* **Causa del fallo espurio:** El valor retornado es negativo debido al desbordamiento en complemento a dos, violando la cláusula `\result >= 0` a pesar de ser la ejecución correcta según la especificación de Java.
-
-
-* **Sugerencia del LLM (Adoptada por el usuario):**
-`@ensures (\result >= 0 || \result == Integer.MIN_VALUE) && \result >= x;`
-
----
-
-### Fase 2: Evaluación de Falsos Negativos (Demasiado Débil)
-
-* **Diagnóstico de OASIs:** La aserción refinada en la Fase 1 exige que la salida sea no-negativa (o el valor mínimo) y mayor/igual a la entrada, pero no impone que el resultado sea exactamente la magnitud absoluta del número.
-* **Mutantes Sobrevivientes Generados:**
-
-| ID | Mutación Introducida | Fragmento del Mutante | Razón de Supervivencia |
-| --- | --- | --- | --- |
-| **M1** | Retorna 0 para entradas negativas | `if (x < 0) return 0;` | `0 >= 0` y `0 >= x` (con $x < 0$). Cumple la aserción sin calcular el valor absoluto. |
-| **M2** | Retorna constante positiva (42) | `if (x < 0) return 42;` | `42 >= 0` y `42 >= x` para todo $x$ negativo. |
-| **M3** | Error de *off-by-one* en negativos | `if (x < 0) return -x + 1;` | `-x + 1` es positivo y mayor a $x$, pero incrementa el resultado en 1. |
-| **M4** | Incremento arbitrario en no-negativos | `return x + 1;` (para $x \ge 0$) | `x + 1 >= 0` y `x + 1 >= x`. Satisface la aserción sin retornar el valor exacto. |
-
-* **Sugerencia de Refinamiento Final (Adoptada por el usuario):**
-`@ensures (x >= 0 && \result == x) || (x < 0 && \result == -x);`
-
----
-
-## 2. Caso de Estudio 2: `Cell.mergeWith(Cell other)`
-
-
-* **Código a analizar:**
 ```java
 public Cell mergeWith(Cell other) {
     if (!canMergeWith(other)) {
@@ -316,71 +336,31 @@ public Cell mergeWith(Cell other) {
     }
     return new Cell(this.value * 2);
 }
-
 ```
 
+La aserción inicial sale de lo que infirió Daikon con nuestros tests manuales
+(`return.value one of { 4, 8 }` en `daikon-output-manual.txt`). Esos tests solo
+fusionaban 2 + 2 y 4 + 4, y Daikon generalizó de más.
 
-* **Aserción Inicial (inferido Daikon test manuales):**
-`@ensures \result != null && \result.value > this.value && (\result.value == 4 || \result.value == 8);`
+| Paso | Aserción | Qué encontró OASIs |
+| --- | --- | --- |
+| Inicial | `\result != null && \result.value > this.value && (\result.value == 4 \|\| \result.value == 8)` | |
+| Fase 1 | | Test: fusionar 8 + 8 da 16, y la aserción falla aunque el resultado es correcto. |
+| Aceptada | `\result != null && \result.value == this.value * 2` | |
+| Fase 2 | | Mutantes: uno saca el chequeo `canMergeWith` y otro lanza `RuntimeException` en vez de `IllegalArgumentException`. La aserción no dice nada sobre las excepciones, así que no los detecta. |
+| Final | `\result.value == 2 * this.value` cuando se puede fusionar, más `@signals (IllegalArgumentException) !canMergeWith(other)` | |
 
----
+El LLM también propuso un mutante que modifica `other.value`, pero no compila
+porque `value` es `private final`. Por el mismo motivo, las condiciones de
+inmutabilidad que sugirió (`\old(...)`) no hacen falta: `Cell` ya es inmutable.
 
-### Fase 1: Evaluación de Falsos Positivos (Demasiado Fuerte)
+## Conclusiones
 
-* **Diagnóstico de OASIs:** La aserción fue generada por sobre-adaptación (*overfitting*) a una traza de ejecución acotada donde solo se observaron fichas de valor 2 y 4. El método implementa duplicación genérica para cualquier valor de celda válido.
-* **Casos de Prueba Violatorios Generados:**
-* **Test #1:** `this.value = 8`, `other.value = 8` $\rightarrow$ Salida esperada: `Cell(16)`. Fallo: $16 \notin \{4, 8\}$.
-* **Test #2:** `this.value = 16`, `other.value = 16` $\rightarrow$ Salida esperada: `Cell(32)`. Fallo: $32 \notin \{4, 8\}$.
-* **Test #3:** `this.value = 32`, `other.value = 32` $\rightarrow$ Salida esperada: `Cell(64)`. Fallo: $64 \notin \{4, 8\}$.
-
-
-* **Sugerencia del LLM (Adoptada por el usuario):**
-`@ensures \result != null && \result.value == this.value * 2;`
-
----
-
-### Fase 2: Evaluación de Falsos Negativos (Demasiado Débil)
-
-* **Diagnóstico de OASIs:** La aserción intermedia solo valida la salida del camino feliz. No especifica el comportamiento ante entradas inválidas (`!canMergeWith`), no restringe el tipo de excepción lanzada (`@signals`), no exige la creación de una instancia nueva (frescura de alias) ni garantiza la inmutabilidad de los objetos de entrada (`\old`).
-* **Mutantes Sobrevivientes Generados:**
-
-| ID | Mutación Introducida | Fragmento del Mutante | Razón de Supervivencia |
-| --- | --- | --- | --- |
-| **M1** | Eliminación de la validación de entrada | `public Cell mergeWith(Cell other) { return new Cell(this.value * 2); }` | En ejecuciones no válidas retorna una celda duplicada en lugar de lanzar una excepción. La aserción no especifica casos excepcionales. |
-| **M2** | Tipo de excepción incorrecto | `throw new RuntimeException(...)` en lugar de `IllegalArgumentException` | La postcondición `@ensures` no se evalúa al lanzar excepciones y falta la cláusula `@signals` específica. |
-| **M3** | Mutación de estado y aliasing | `other.value = this.value * 2; return other;` | Modifica `other` y lo retorna en lugar de instanciar un nuevo objeto. La aserción no valida alias (`\result != other`) ni inmutabilidad. |
-
-* **Sugerencia de Refinamiento Final (Adoptada por el usuario):**
-```jml
-@ensures canMergeWith(other) ==> (
-    \result != null && 
-    \result != this && 
-    \result != other && 
-    \result.value == 2 * \old(this.value) && 
-    this.value == \old(this.value) && 
-    (other == null || other.value == \old(other.value))
-);
-@ensures !canMergeWith(other) ==> false;
-@signals (IllegalArgumentException) !canMergeWith(other);
-```
-
-
-
----
-
-## 3. Matriz Comparativa de Resultados
-
-| Caso de Estudio | Oráculo Inicial | Defecto Detectado en FP | Defecto Detectado en FN | Oráculo Refinado Final (JML) |
-| --- | --- | --- | --- | --- |
-| **`Math.abs`** | `\result >= 0 && \result >= x` | Desbordamiento de entero en `Integer.MIN_VALUE`. | No exige exactitud de valor absoluto (retornos arbitrarios o con offset pasan). | `(x >= 0 && \result == x) || (x < 0 && \result == -x)` |
-| **`Cell.mergeWith`** | `\result.value == 4 || \result.value == 8` | *Overfitting* a datos de prueba (falla para fichas $> 4$). | Falta de precondiciones, excepciones, inmutabilidad y control de alias. | `canMergeWith(other) ==> (\result != null && \result != this && \result != other && \result.value == 2*\old(this.value) ...) @signals (IllegalArgumentException)` |
-
----
-
-## 4. Evaluación Global del Desempeño de OASIs
-
-La combinación de **generación de casos de prueba** (para Falsos Positivos) y **generación de mutantes** (para Falsos Negativos) permitió corregir las deficiencias típicas de los oráculos de software:
-
-1. **Eliminación del Overfitting:** OASIs detectó que las restricciones constantes (como las inferidas por Daikon en `Cell.mergeWith`) rompen ejecuciones válidas y generó los tests precisos que lo demuestran.
-2. **Fortalecimiento Formal:** Mediante el análisis de mutantes sobrevivientes, la herramienta guio al desarrollador desde aserciones débiles de ordenamiento hacia contratos de especificación completos en JML (incluyendo cláusulas `@signals`, `\old` y condiciones de aliasing).
-3. **Control del Desarrollador:** En ambos casos de estudio, la estructura interactiva permitió al usuario evaluar el diagnóstico de cada fase antes de aplicar las modificaciones propuestas.
+- **Los tests encuentran aserciones demasiado fuertes.** En `mergeWith`, OASIs
+  mostró enseguida que el contrato de Daikon estaba sobreajustado a los tests.
+- **Los mutantes encuentran aserciones demasiado débiles.** En los dos casos
+  llevaron a una aserción que fija el resultado exacto y, en `mergeWith`, también
+  la excepción.
+- **El LLM se equivoca, y por eso decide el usuario.** Como no ejecuta el código,
+  propuso mutantes que no compilan o que la aserción sí detecta. Hay que revisar
+  cada propuesta antes de aceptarla.

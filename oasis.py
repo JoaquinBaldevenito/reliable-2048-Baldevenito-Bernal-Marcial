@@ -7,12 +7,13 @@ Refines test oracles and postconditions/contracts using an LLM through OpenRoute
 Requires Python 3.8+, requests, and LLM_API_KEY.
 
 Usage:
-  python3 oasis.py [--case 1|2|3] [--model MODEL_NAME] [--max-iterations N]
+  python3 oasis.py [--case 1|2|3] [--model MODEL_NAME] [--max-iterations N] [--debug]
 """
 
 import os
 import sys
 import json
+import time
 import argparse
 import requests
 
@@ -85,12 +86,37 @@ Respond with this JSON object:
         },
     }
 
-    def __init__(self, api_key, base_url="https://openrouter.ai/api/v1", model="nvidia/nemotron-3-ultra-550b-a55b:free"):
+    def __init__(self, api_key, base_url="https://openrouter.ai/api/v1", model="nvidia/nemotron-3-ultra-550b-a55b:free", debug=False):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.debug = debug
 
     def _call_llm(self, system_prompt, user_prompt):
+        """Sends the prompts to the LLM, showing progress and, with --debug, the full exchange."""
+        if self.debug:
+            debug_log(f"PROMPT sent to {self.model}", f"[system]\n{system_prompt}\n\n[user]\n{user_prompt}")
+
+        print(f"Asking the LLM ({self.model})...", end=" ", flush=True)
+        start = time.monotonic()
+        try:
+            content, usage = self._request(system_prompt, user_prompt)
+        except RuntimeError:
+            print(f"failed after {time.monotonic() - start:.0f}s")
+            raise
+        elapsed = time.monotonic() - start
+        print(f"done in {elapsed:.0f}s")
+
+        if self.debug:
+            tokens = (
+                f"{usage.get('prompt_tokens', '?')} prompt + {usage.get('completion_tokens', '?')} completion tokens"
+                if usage else "token usage not reported"
+            )
+            debug_log(f"RAW RESPONSE ({elapsed:.1f}s, {tokens})", content)
+        return content
+
+    def _request(self, system_prompt, user_prompt):
+        """Makes the HTTP request and returns the answer text and the token usage."""
         url = f"{self.base_url}/chat/completions"
         headers = {
             "Content-Type": "application/json",
@@ -114,7 +140,7 @@ Respond with this JSON object:
             content = res_data["choices"][0]["message"].get("content") or ""
             if not content.strip():
                 raise RuntimeError("EMPTY RESPONSE: the model returned no content. Try again or use another --model.")
-            return content
+            return content, res_data.get("usage") or {}
         except requests.exceptions.Timeout:
             raise RuntimeError(
                 "TIMEOUT: the LLM API did not respond within 120 seconds. "
@@ -158,6 +184,11 @@ Respond with this JSON object:
         cfg = self.PROMPTS[kind]
         prompt = cfg["task"].format(language=language, code=code, assertion=assertion)
         return self._parse_json(self._call_llm(cfg["system"], prompt))
+
+
+def debug_log(title, text):
+    """Prints debug information to stderr, so it does not mix with the normal output."""
+    print(f"\n[DEBUG] {title}\n{'.' * 50}\n{text}\n{'.' * 50}\n", file=sys.stderr, flush=True)
 
 
 def print_feedback(label, items):
@@ -229,8 +260,8 @@ def run_phase(engine, kind, number, code, assertion):
     return ask_refinement(assertion, res.get("suggested_assertion", ""))
 
 
-def run_interactive_session(code, initial_assertion, api_key, base_url, model, max_iterations=3):
-    engine = OASIsEngine(api_key=api_key, base_url=base_url, model=model)
+def run_interactive_session(code, initial_assertion, api_key, base_url, model, max_iterations=3, debug=False):
+    engine = OASIsEngine(api_key=api_key, base_url=base_url, model=model, debug=debug)
     history = [initial_assertion]
 
     print("\n" + "=" * 80)
@@ -279,18 +310,7 @@ CASE_STUDY_1 = {
 }
 
 CASE_STUDY_2 = {
-    "title": "Case Study 2: Array Sort - Weak Daikon Contract (False Negative)",
-    "code": """public static int[] sort(int[] arr) {
-    if (arr == null) return null;
-    int[] result = arr.clone();
-    java.util.Arrays.sort(result);
-    return result;
-}""",
-    "assertion": r"@ensures \result != null && \result.length == arr.length;",
-}
-
-CASE_STUDY_3 = {
-    "title": "Case Study 3: Cell.mergeWith - Daikon adaptation (Game 2048)",
+    "title": "Case Study 2: Cell.mergeWith - Daikon contract (Game 2048)",
     "code": """public Cell mergeWith(Cell other) {
     if (!canMergeWith(other)) {
         throw new IllegalArgumentException(
@@ -300,6 +320,31 @@ CASE_STUDY_3 = {
     return new Cell(this.value * 2);
 }""",
     "assertion": r"@ensures \result != null && \result.value > this.value && (\result.value == 4 || \result.value == 8);"
+}
+
+CASE_STUDY_3 = {
+    "title": "Case Study 3: Movement.mergeCells - merging a row (Game 2048)",
+    "code": """/**
+ * Merges a row of non-empty cells, as in 2048: equal neighbours merge once,
+ * from the start of the list. Example: [2, 2, 4] -> [4, 4], score += 4.
+ */
+private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+    List<Cell> merged = new ArrayList<>();
+    int k = 0;
+    while (k < nonEmpty.size()) {
+        if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+            Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+            merged.add(mergedCell);
+            scoreDelta[0] += mergedCell.getValue();
+            k += 2;
+        } else {
+            merged.add(nonEmpty.get(k));
+            k++;
+        }
+    }
+    return merged;
+}""",
+    "assertion": r"@ensures \result.size() < nonEmpty.size();",
 }
 
 
@@ -314,6 +359,7 @@ def main():
     parser.add_argument("--model", default="nvidia/nemotron-3-ultra-550b-a55b:free", help="LLM model to use")
     parser.add_argument("--base-url", default="https://openrouter.ai/api/v1", help="LLM API base URL")
     parser.add_argument("--max-iterations", type=int, default=3, help="Maximum refinement iterations")
+    parser.add_argument("--debug", action="store_true", help="Show the prompts, raw LLM responses and token usage (on stderr)")
     args = parser.parse_args()
 
     api_key = os.getenv("LLM_API_KEY")
@@ -327,19 +373,19 @@ def main():
     if args.case:
         case = CASES[args.case]
         print(f"\nRunning {case['title']}...")
-        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model, args.max_iterations)
+        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model, args.max_iterations, args.debug)
         return
 
     print("\nSelect execution mode:")
-    print("  1. Case Study 1: Absolute Value (False Positive)")
-    print("  2. Case Study 2: Array Sort / Daikon Contract (False Negative)")
-    print("  3. Case Study 3: Cell.mergeWith / Game 2048 (Daikon Contract)")
+    print("  1. Case Study 1: Math.abs")
+    print("  2. Case Study 2: Cell.mergeWith / Game 2048 (Daikon contract)")
+    print("  3. Case Study 3: Movement.mergeCells / Game 2048 (merging a row)")
     print("  4. Custom code and assertion")
     opt = input("Enter option (1/2/3/4): ").strip()
 
     if opt in CASES:
         case = CASES[opt]
-        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model, args.max_iterations)
+        run_interactive_session(case["code"], case["assertion"], api_key, args.base_url, args.model, args.max_iterations, args.debug)
     elif opt == "4":
         print("\nEnter the program code (press Ctrl+D or type END on a line to finish):")
         lines = []
@@ -353,7 +399,7 @@ def main():
                 break
         user_code = "\n".join(lines)
         user_assertion = input("Enter the current assertion: ").strip()
-        run_interactive_session(user_code, user_assertion, api_key, args.base_url, args.model, args.max_iterations)
+        run_interactive_session(user_code, user_assertion, api_key, args.base_url, args.model, args.max_iterations, args.debug)
     else:
         print("Invalid option.")
 
