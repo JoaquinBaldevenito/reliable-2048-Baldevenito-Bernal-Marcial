@@ -97,7 +97,7 @@ python3 mutation_fuzzer.py \
 
 ```bash
 Mutants: 10000 (from grammar-based-fuzzer/fuzzed_boards.txt)
-Corpus: /home/valentin/Escritorio/Seminario/reliable-2048-Baldevenito-Bernal-Marcial/grammar-based-fuzzer/mutated_boards.txt
+Corpus: grammar-based-fuzzer/mutated_boards.txt
 PASS: 9892/10000
 FAIL: 108/10000
 UNRESOLVED: 0/10000
@@ -119,7 +119,7 @@ FAIL #9712: [64,64,00,512,8,64,1024,16,4,32,64,32,65536,64,4,256] (invalid board
     original: [64,64,0,512,8,64,1024,16,4,32,64,32,64,64,4,256]
 
 
-# Ejemplos de caso 3
+# Ejemplos de caso 3 (el mutante tiene un espacio al final, que no se ve)
 FAIL #5513: [2,8,0,4,256,1024,16,64,32,4,128,256,128,4,4,128]  (invalid board was accepted)
     original: [2,8,0,4,256,1024,16,64,32,4,128,256,128,4,4,128]
 
@@ -272,7 +272,9 @@ python3 oasis.py --case 1                # o --case 2, --case 3
 
 Sin `--case`, el programa muestra un menú donde también se puede cargar código y
 una aserción propios. Con `--max-iterations N` se cambia el máximo de vueltas
-(por defecto, 3).
+(por defecto, 3). Con `--debug` se ven además los prompts, las respuestas
+crudas del LLM y los tokens usados (por stderr, así no se mezclan con la salida
+normal).
 
 ## Cómo funciona
 
@@ -301,7 +303,14 @@ Al final muestra cómo fue cambiando la aserción en cada vuelta.
 
 ## Casos de estudio
 
-Las salidas completas están en `oasis-output.txt`.
+Las salidas completas están en `oasis-output.txt` (caso 1), `oasis-output-case2.txt`
+y `oasis-output-case3.txt`.
+
+En los casos 2 y 3 aceptamos **todas** las sugerencias del LLM y lo dejamos
+iterar 3 veces, para ver hasta dónde llegaba solo. Después revisamos cada
+propuesta y marcamos cuáles aceptaría un usuario (✅) y cuáles no (❌). En la
+tercera vuelta de los dos casos, la Fase 1 falló porque el modelo gratuito no
+respondió a tiempo.
 
 ### Caso 1: `abs`
 
@@ -377,17 +386,20 @@ La aserción inicial sale de lo que infirió Daikon con nuestros tests manuales
 (`return.value one of { 4, 8 }` en `daikon-output-manual.txt`). Esos tests solo
 fusionaban 2 + 2 y 4 + 4, y Daikon generalizó de más.
 
-| Paso | Aserción | Qué encontró OASIs |
+| Vuelta | Qué encontró OASIs | ¿Sirve? |
 | --- | --- | --- |
-| Inicial | `\result != null && \result.value > this.value && (\result.value == 4 \|\| \result.value == 8)` | |
-| Fase 1 | | Test: fusionar 8 + 8 da 16, y la aserción falla aunque el resultado es correcto. |
-| Aceptada | `\result != null && \result.value == this.value * 2` | |
-| Fase 2 | | Mutantes: uno saca el chequeo `canMergeWith` y otro lanza `RuntimeException` en vez de `IllegalArgumentException`. La aserción no dice nada sobre las excepciones, así que no los detecta. |
-| Final | `\result.value == 2 * this.value` cuando se puede fusionar, más `@signals (IllegalArgumentException) !canMergeWith(other)` | |
+| 1, Fase 1 | Tests: 8 + 8 da 16, y la aserción falla aunque el resultado es correcto. También 1 + 1 y 3 + 3. | ✅ 8 + 8. ❌ 1 + 1 y 3 + 3: `Cell` no acepta 1 ni valores que no sean potencia de 2. |
+| 1, Fase 2 | Mutantes que sacan o invierten el chequeo `canMergeWith`: fusionan celdas distintas en vez de lanzar la excepción. | ✅ La aserción no dice nada de las excepciones. |
+| 1, aceptada | `canMergeWith(other) ==> \result.value == this.value * 2`, y si no se puede fusionar, `\signals (IllegalArgumentException)` | ✅ **Esta es la buena.** |
+| 2, Fase 2 | Mutantes que hacen `this.value = 0` antes de devolver. | ❌ No compilan: `value` es `private final`. |
+| 2, aceptada | Lo mismo, pero con `\old(this.value)` | ❌ No hace falta: `Cell` es inmutable. |
+| 3, Fase 2 | Mutantes que cambian `this.value` u `other.value`, y uno que cambia el texto del mensaje de error. | ❌ Los dos primeros no compilan. El tercero es válido, pero no importa. |
+| 3, aceptada | Agrega `assignable \nothing`, `\fresh(\result)` y que el mensaje sea exactamente `"Cannot merge cells: ..."` | ❌ Sobreajustada: se rompe si alguien cambia el mensaje. |
 
-El LLM también propuso un mutante que modifica `other.value`, pero no compila
-porque `value` es `private final`. Por el mismo motivo, las condiciones de
-inmutabilidad que sugirió (`\old(...)`) no hacen falta: `Cell` ya es inmutable.
+Un usuario se quedaría con la aserción de la vuelta 1 y rechazaría las
+siguientes. Casi todos los errores del LLM tienen la misma causa: **solo ve el
+método, no la clase `Cell`**, así que no sabe que `value` es `private final` ni qué
+valores acepta el constructor.
 
 ### Caso 3: `Movement.mergeCells`, fusionar una fila
 
@@ -421,15 +433,48 @@ que fusionar. Y si se la relaja a `<=`, queda demasiado débil: no detecta el
 error clásico del 2048, la doble fusión, donde `[2, 2, 4]` termina en `[8]` en
 vez de `[4, 4]`.
 
-> Pendiente: completar con la corrida de OASIs.
+| Vuelta | Qué encontró OASIs | ¿Sirve? |
+| --- | --- | --- |
+| 1, Fase 1 | Tests `[2]`, `[2, 4]` y `[2, 4, 8]`: no hay nada que fusionar y la aserción falla. | ✅ |
+| 1, aceptada | `\result.size() <= nonEmpty.size()` | ✅ |
+| 1, Fase 2 | Mutantes: uno nunca fusiona (`[2, 2]` queda `[2, 2]`), uno duplica una ficha (`[2, 2]` → `[4, 2]`) y uno pierde la ficha fusionada (`[2, 2]` → `[]`). | ✅ Todos sobreviven con `<=`. |
+| 1, aceptada | `<=`, "no quedan dos vecinas que se puedan fusionar" y "la suma de los valores se conserva" | ❌ Parece buena, pero es demasiado fuerte (ver la vuelta 2). |
+| 2, Fase 1 | **Test: `[2, 2, 4]` da `[4, 4]`**, y lo mismo `[2, 2, 2, 2]`. En el 2048, una ficha recién fusionada no se vuelve a fusionar, así que quedan vecinas iguales. | ✅ **La segunda vuelta corrigió un error de la primera.** |
+| 2, aceptada | `<=` y "la suma se conserva" | ✅ |
+| 2, Fase 2 | Mutantes: uno nunca fusiona (`[2, 2, 4]` queda igual) y otro fusiona de derecha a izquierda (`[2, 2, 2]` → `[2, 4]` en vez de `[4, 2]`). | ✅ El segundo es un error real del 2048. |
+| 2, aceptada | Además, `\result.equals(mergeCellsSpec(nonEmpty))` | ❌ `mergeCellsSpec` no existe: es "comparar contra otra copia del algoritmo". |
+| 3, Fase 2 | Mutantes que suman mal el puntaje: no suman nada, suman el doble o suman sin fusionar. | ✅ Ninguna aserción revisaba `scoreDelta`. |
+| 3, aceptada | Además, `scoreDelta[0] == \old(scoreDelta[0]) + mergeScoreSpec(nonEmpty)` | ❌ Mismo problema: `mergeScoreSpec` no existe. |
+
+Es el caso que mejor muestra para qué sirve OASIs:
+
+- **La iteración vale la pena.** La vuelta 1 aceptó una aserción que sonaba bien,
+  y la vuelta 2 encontró un test que la rompía con el programa correcto.
+- **Los mutantes fueron todos válidos** y apuntaron a errores reales: no
+  fusionar, fusionar al revés y calcular mal el puntaje.
+- **Las sugerencias finales no sirven.** Cuando la aserción tiene que fijar el
+  resultado exacto, el LLM propone "compará con una función que hace lo mismo".
+  Un usuario se quedaría con la aserción de la vuelta 2 y le agregaría a mano el
+  chequeo del puntaje: `scoreDelta[0]` aumenta en la suma de las fichas nuevas.
+- **No apareció el mutante de la doble fusión.** `[2, 2, 4]` → `[8]` conserva la
+  suma y achica la fila, así que la aserción de la vuelta 2 tampoco lo detecta.
+  OASIs ayuda, pero no garantiza encontrar todos los mutantes.
 
 ## Conclusiones
 
 - **Los tests encuentran aserciones demasiado fuertes.** En `mergeWith`, OASIs
   mostró enseguida que el contrato de Daikon estaba sobreajustado a los tests.
-- **Los mutantes encuentran aserciones demasiado débiles.** En los dos casos
-  llevaron a una aserción que fija el resultado exacto y, en `mergeWith`, también
-  la excepción.
-- **El LLM se equivoca, y por eso decide el usuario.** Como no ejecuta el código,
-  propuso mutantes que no compilan o que la aserción sí detecta. Hay que revisar
-  cada propuesta antes de aceptarla.
+- **Los mutantes encuentran aserciones demasiado débiles.** En `abs` llevaron a
+  una aserción que fija el resultado exacto, en `mergeWith` a una que incluye la
+  excepción y en `mergeCells` mostraron que el puntaje no se revisaba.
+- **Iterar sirve.** En `abs`, la segunda vuelta confirmó que la aserción estaba
+  bien. En `mergeCells`, encontró que el refinamiento de la primera era
+  demasiado fuerte.
+- **El LLM se equivoca, y por eso decide el usuario.** Como no ejecuta el código
+  ni ve el resto de las clases, propuso tests con valores inválidos, mutantes
+  que no compilan y aserciones sobreajustadas o circulares. Si aceptábamos todo,
+  en los casos 2 y 3 terminábamos con una aserción peor que la de las primeras
+  vueltas.
+- **Posible mejora:** pasarle al LLM, junto con el método, las partes de `Cell`
+  que necesita (el campo `private final int value` y qué valores acepta el
+  constructor).

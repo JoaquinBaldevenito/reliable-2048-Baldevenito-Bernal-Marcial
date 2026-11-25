@@ -1,0 +1,252 @@
+
+Running Case Study 2: Cell.mergeWith - Daikon contract (Game 2048)...
+
+================================================================================
+                      OASIS TOOL - ORACLE REFINEMENT
+================================================================================
+
+[+] Code to analyze:
+public Cell mergeWith(Cell other) {
+    if (!canMergeWith(other)) {
+        throw new IllegalArgumentException(
+            "Cannot merge cells: " + this + " and " + other
+        );
+    }
+    return new Cell(this.value * 2);
+}
+
+[+] Initial assertion:
+    `@ensures \result != null && \result.value > this.value && (\result.value == 4 || \result.value == 8);`
+
+
+================================================================================
+ITERATION 1  -  assertion: `@ensures \result != null && \result.value > this.value && (\result.value == 4 || \result.value == 8);`
+================================================================================
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 193s
+
+FALSE POSITIVE: these tests fail on the correct program.
+
+[Test #1] this.value=1, other.value=1 -> result.value=2, fails because result.value != 4 && result.value != 8
+    @Test void testMergeOnes() {
+        Cell a = new Cell(1);
+        Cell b = new Cell(1);
+        Cell result = a.mergeWith(b);
+        assertTrue(result != null && result.value > a.value && (result.value == 4 || result.value == 8));
+    }
+
+[Test #2] this.value=8, other.value=8 -> result.value=16, fails because result.value != 4 && result.value != 8
+    @Test void testMergeEights() {
+        Cell a = new Cell(8);
+        Cell b = new Cell(8);
+        Cell result = a.mergeWith(b);
+        assertTrue(result != null && result.value > a.value && (result.value == 4 || result.value == 8));
+    }
+
+[Test #3] this.value=3, other.value=3 -> result.value=6, fails because result.value != 4 && result.value != 8
+    @Test void testMergeThrees() {
+        Cell a = new Cell(3);
+        Cell b = new Cell(3);
+        Cell result = a.mergeWith(b);
+        assertTrue(result != null && result.value > a.value && (result.value == 4 || result.value == 8));
+    }
+
+
+LLM refinement suggestion:
+   `\result != null && \result.value == this.value * 2 && \result.value > this.value`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `\result != null && \result.value == this.value * 2 && \result.value > this.value`
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 410s
+
+FALSE NEGATIVE: these mutants survive the assertion.
+
+[Mutant #1] For canMergeWith=true and this.value<=0, original returns Cell but mutant throws; mutant satisfies assertion because it only returns when this.value>0.
+    public Cell mergeWith(Cell other) {
+        if (!canMergeWith(other) || this.value <= 0) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        return new Cell(this.value * 2);
+    }
+
+[Mutant #2] For canMergeWith=false and this.value>0, original throws but mutant returns Cell; mutant satisfies assertion because it only returns when this.value>0.
+    public Cell mergeWith(Cell other) {
+        if (this.value <= 0) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        return new Cell(this.value * 2);
+    }
+
+[Mutant #3] Inverts canMergeWith check; for canMergeWith=false and this.value>0, mutant returns Cell satisfying assertion, but original throws.
+    public Cell mergeWith(Cell other) {
+        if (canMergeWith(other) || this.value <= 0) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        return new Cell(this.value * 2);
+    }
+
+
+LLM refinement suggestion:
+   `canMergeWith(other) ==> (\result != null && \result.value == this.value * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `canMergeWith(other) ==> (\result != null && \result.value == this.value * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+
+Check the new assertion again? (y/n): y   <- auto
+
+================================================================================
+ITERATION 2  -  assertion: `canMergeWith(other) ==> (\result != null && \result.value == this.value * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+================================================================================
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 62s
+No test was found that breaks the assertion on a correct execution.
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 330s
+
+FALSE NEGATIVE: these mutants survive the assertion.
+
+[Mutant #1] When canMergeWith(other) is true and this.value != 0, returns 0 instead of this.value*2, but assertion holds because it uses final this.value.
+    public Cell mergeWith(Cell other) {
+        if (!canMergeWith(other)) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        this.value = 0;
+        return new Cell(this.value * 2);
+    }
+
+[Mutant #2] When canMergeWith(other) is true, returns (this.value+1)*2 instead of this.value*2, but assertion holds because it uses final this.value.
+    public Cell mergeWith(Cell other) {
+        if (!canMergeWith(other)) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        this.value = this.value + 1;
+        return new Cell(this.value * 2);
+    }
+
+[Mutant #3] When canMergeWith(other) is true, returns -this.value*2 instead of this.value*2, but assertion holds because it uses final this.value.
+    public Cell mergeWith(Cell other) {
+        if (!canMergeWith(other)) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        this.value = -this.value;
+        return new Cell(this.value * 2);
+    }
+
+
+LLM refinement suggestion:
+   `canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+
+Check the new assertion again? (y/n): y   <- auto
+
+================================================================================
+ITERATION 3  -  assertion: `canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+================================================================================
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... failed after 182s
+Error during the analysis: CONNECTION ERROR: could not reach the LLM API. Details: HTTPSConnectionPool(host='openrouter.ai', port=443): Read timed out.
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 155s
+
+FALSE NEGATIVE: these mutants survive the assertion.
+
+[Mutant #1] Mutates this.value after canMergeWith check, but returns correct value; assertion doesn't forbid side effects on this.
+    public Cell mergeWith(Cell other) {
+        if (!canMergeWith(other)) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        int oldValue = this.value;
+        this.value = 0;
+        return new Cell(oldValue * 2);
+    }
+
+[Mutant #2] Mutates other.value; assertion doesn't mention other's state.
+    public Cell mergeWith(Cell other) {
+        if (!canMergeWith(other)) {
+            throw new IllegalArgumentException(
+                "Cannot merge cells: " + this + " and " + other
+            );
+        }
+        other.value = 0;
+        return new Cell(this.value * 2);
+    }
+
+[Mutant #3] Throws IllegalArgumentException with different message; assertion only checks exception type.
+    public Cell mergeWith(Cell other) {
+        if (!canMergeWith(other)) {
+            throw new IllegalArgumentException("Different message");
+        }
+        return new Cell(this.value * 2);
+    }
+
+
+LLM refinement suggestion:
+   `/*@ assignable \nothing; ensures canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2 && \fresh(\result)); signals (IllegalArgumentException e) !canMergeWith(other) && e.getMessage().equals("Cannot merge cells: " + \old(this) + " and " + \old(other)); @*/`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `/*@ assignable \nothing; ensures canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2 && \fresh(\result)); signals (IllegalArgumentException e) !canMergeWith(other) && e.getMessage().equals("Cannot merge cells: " + \old(this) + " and " + \old(other)); @*/`
+
+Reached the maximum of 3 iterations.
+
+================================================================================
+FINAL ORACLE REFINEMENT RESULT
+================================================================================
+  Initial: `@ensures \result != null && \result.value > this.value && (\result.value == 4 || \result.value == 8);`
+  After iteration 1: `canMergeWith(other) ==> (\result != null && \result.value == this.value * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+  After iteration 2: `canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2) && (!canMergeWith(other) ==> \signals (IllegalArgumentException))`
+  After iteration 3: `/*@ assignable \nothing; ensures canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2 && \fresh(\result)); signals (IllegalArgumentException e) !canMergeWith(other) && e.getMessage().equals("Cannot merge cells: " + \old(this) + " and " + \old(other)); @*/`
+
+Final Assertion Approved by the User:
+`/*@ assignable \nothing; ensures canMergeWith(other) ==> (\result != null && \result.value == \old(this.value) * 2 && \fresh(\result)); signals (IllegalArgumentException e) !canMergeWith(other) && e.getMessage().equals("Cannot merge cells: " + \old(this) + " and " + \old(other)); @*/`
+

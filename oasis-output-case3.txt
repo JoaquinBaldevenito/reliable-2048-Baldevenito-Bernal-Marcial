@@ -1,0 +1,436 @@
+
+Running Case Study 3: Movement.mergeCells - merging a row (Game 2048)...
+
+================================================================================
+                      OASIS TOOL - ORACLE REFINEMENT
+================================================================================
+
+[+] Code to analyze:
+/**
+ * Merges a row of non-empty cells, as in 2048: equal neighbours merge once,
+ * from the start of the list. Example: [2, 2, 4] -> [4, 4], score += 4.
+ */
+private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+    List<Cell> merged = new ArrayList<>();
+    int k = 0;
+    while (k < nonEmpty.size()) {
+        if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+            Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+            merged.add(mergedCell);
+            scoreDelta[0] += mergedCell.getValue();
+            k += 2;
+        } else {
+            merged.add(nonEmpty.get(k));
+            k++;
+        }
+    }
+    return merged;
+}
+
+[+] Initial assertion:
+    `@ensures \result.size() < nonEmpty.size();`
+
+
+================================================================================
+ITERATION 1  -  assertion: `@ensures \result.size() < nonEmpty.size();`
+================================================================================
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 93s
+
+FALSE POSITIVE: these tests fail on the correct program.
+
+[Test #1] input [2] -> output [2]; result.size()==1, nonEmpty.size()==1, so 1 < 1 is false
+    @Test void testSingleCell() {
+        List<Cell> nonEmpty = List.of(new Cell(2));
+        int[] scoreDelta = new int[1];
+        List<Cell> result = mergeCells(nonEmpty, scoreDelta);
+        assertTrue(result.size() < nonEmpty.size());
+    }
+
+[Test #2] input [2,4] -> output [2,4]; result.size()==2, nonEmpty.size()==2, so 2 < 2 is false
+    @Test void testTwoDistinctCells() {
+        List<Cell> nonEmpty = List.of(new Cell(2), new Cell(4));
+        int[] scoreDelta = new int[1];
+        List<Cell> result = mergeCells(nonEmpty, scoreDelta);
+        assertTrue(result.size() < nonEmpty.size());
+    }
+
+[Test #3] input [2,4,8] -> output [2,4,8]; result.size()==3, nonEmpty.size()==3, so 3 < 3 is false
+    @Test void testThreeDistinctCells() {
+        List<Cell> nonEmpty = List.of(new Cell(2), new Cell(4), new Cell(8));
+        int[] scoreDelta = new int[1];
+        List<Cell> result = mergeCells(nonEmpty, scoreDelta);
+        assertTrue(result.size() < nonEmpty.size());
+    }
+
+
+LLM refinement suggestion:
+   `@ensures \result.size() <= nonEmpty.size();`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `@ensures \result.size() <= nonEmpty.size();`
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 151s
+
+FALSE NEGATIVE: these mutants survive the assertion.
+
+[Mutant #1] Input [2,2] -> returns [2,2] instead of [4], size 2 <= 2
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = 0;
+        while (k < nonEmpty.size()) {
+            if (k + 1 < nonEmpty.size() && false && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                merged.add(mergedCell);
+                scoreDelta[0] += mergedCell.getValue();
+                k += 2;
+            } else {
+                merged.add(nonEmpty.get(k));
+                k++;
+            }
+        }
+        return merged;
+    }
+
+[Mutant #2] Input [2,2] -> returns [4,2] instead of [4], size 2 <= 2
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = 0;
+        while (k < nonEmpty.size()) {
+            if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                merged.add(mergedCell);
+                scoreDelta[0] += mergedCell.getValue();
+                k += 1;
+            } else {
+                merged.add(nonEmpty.get(k));
+                k++;
+            }
+        }
+        return merged;
+    }
+
+[Mutant #3] Input [2,2] -> returns [] instead of [4], size 0 <= 2
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = 0;
+        while (k < nonEmpty.size()) {
+            if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                scoreDelta[0] += mergedCell.getValue();
+                k += 2;
+            } else {
+                merged.add(nonEmpty.get(k));
+                k++;
+            }
+        }
+        return merged;
+    }
+
+
+LLM refinement suggestion:
+   `@ensures \result.size() <= nonEmpty.size() && (\forall int i; 0 <= i < \result.size()-1; !\result.get(i).canMergeWith(\result.get(i+1))) && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue())`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `@ensures \result.size() <= nonEmpty.size() && (\forall int i; 0 <= i < \result.size()-1; !\result.get(i).canMergeWith(\result.get(i+1))) && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue())`
+
+Check the new assertion again? (y/n): y   <- auto
+
+================================================================================
+ITERATION 2  -  assertion: `@ensures \result.size() <= nonEmpty.size() && (\forall int i; 0 <= i < \result.size()-1; !\result.get(i).canMergeWith(\result.get(i+1))) && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue())`
+================================================================================
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 209s
+
+FALSE POSITIVE: these tests fail on the correct program.
+
+[Test #1] Input [2,2,4] -> output [4,4]; the second condition fails because adjacent 4s can merge.
+    import org.junit.Test;
+    import java.util.ArrayList;
+    import java.util.Arrays;
+    import java.util.List;
+    import static org.junit.Assert.assertTrue;
+    
+    public class MergeCellsTest1 {
+        static class Cell {
+            private final int value;
+            Cell(int value) { this.value = value; }
+            int getValue() { return value; }
+            boolean canMergeWith(Cell other) { return other != null && this.value == other.value; }
+            Cell mergeWith(Cell other) { return new Cell(this.value * 2); }
+        }
+    
+        private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+            List<Cell> merged = new ArrayList<>();
+            int k = 0;
+            while (k < nonEmpty.size()) {
+                if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                    Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                    merged.add(mergedCell);
+                    scoreDelta[0] += mergedCell.getValue();
+                    k += 2;
+                } else {
+                    merged.add(nonEmpty.get(k));
+                    k++;
+                }
+            }
+            return merged;
+        }
+    
+        @Test
+        public void testMergeCells_2_2_4() {
+            List<Cell> nonEmpty = Arrays.asList(new Cell(2), new Cell(2), new Cell(4));
+            int[] scoreDelta = new int[1];
+            List<Cell> merged = mergeCells(nonEmpty, scoreDelta);
+            boolean condition1 = merged.size() <= nonEmpty.size();
+            boolean condition2 = true;
+            for (int i = 0; i < merged.size() - 1; i++) {
+                if (merged.get(i).canMergeWith(merged.get(i + 1))) {
+                    condition2 = false;
+                    break;
+                }
+            }
+            int sumMerged = 0;
+            for (Cell c : merged) sumMerged += c.getValue();
+            int sumNonEmpty = 0;
+            for (Cell c : nonEmpty) sumNonEmpty += c.getValue();
+            boolean condition3 = (sumMerged == sumNonEmpty);
+            assertTrue(condition1 && condition2 && condition3);
+        }
+    }
+
+[Test #2] Input [2,2,2,2] -> output [4,4]; the second condition fails because adjacent 4s can merge.
+    import org.junit.Test;
+    import java.util.ArrayList;
+    import java.util.Arrays;
+    import java.util.List;
+    import static org.junit.Assert.assertTrue;
+    
+    public class MergeCellsTest2 {
+        static class Cell {
+            private final int value;
+            Cell(int value) { this.value = value; }
+            int getValue() { return value; }
+            boolean canMergeWith(Cell other) { return other != null && this.value == other.value; }
+            Cell mergeWith(Cell other) { return new Cell(this.value * 2); }
+        }
+    
+        private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+            List<Cell> merged = new ArrayList<>();
+            int k = 0;
+            while (k < nonEmpty.size()) {
+                if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                    Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                    merged.add(mergedCell);
+                    scoreDelta[0] += mergedCell.getValue();
+                    k += 2;
+                } else {
+                    merged.add(nonEmpty.get(k));
+                    k++;
+                }
+            }
+            return merged;
+        }
+    
+        @Test
+        public void testMergeCells_2_2_2_2() {
+            List<Cell> nonEmpty = Arrays.asList(new Cell(2), new Cell(2), new Cell(2), new Cell(2));
+            int[] scoreDelta = new int[1];
+            List<Cell> merged = mergeCells(nonEmpty, scoreDelta);
+            boolean condition1 = merged.size() <= nonEmpty.size();
+            boolean condition2 = true;
+            for (int i = 0; i < merged.size() - 1; i++) {
+                if (merged.get(i).canMergeWith(merged.get(i + 1))) {
+                    condition2 = false;
+                    break;
+                }
+            }
+            int sumMerged = 0;
+            for (Cell c : merged) sumMerged += c.getValue();
+            int sumNonEmpty = 0;
+            for (Cell c : nonEmpty) sumNonEmpty += c.getValue();
+            boolean condition3 = (sumMerged == sumNonEmpty);
+            assertTrue(condition1 && condition2 && condition3);
+        }
+    }
+
+
+LLM refinement suggestion:
+   `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue())`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue())`
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 390s
+
+FALSE NEGATIVE: these mutants survive the assertion.
+
+[Mutant #1] On input [2,2,4] returns [2,2,4] (no merge) instead of [4,4]; size=3<=3, sum=8=8, so assertion passes.
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = 0;
+        while (k < nonEmpty.size()) {
+            if (false) { // never merge
+                Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                merged.add(mergedCell);
+                scoreDelta[0] += mergedCell.getValue();
+                k += 2;
+            } else {
+                merged.add(nonEmpty.get(k));
+                k++;
+            }
+        }
+        return merged;
+    }
+
+[Mutant #2] On input [2,2,2] returns [2,4] (right-to-left merge) instead of [4,2]; size=2<=3, sum=6=6, so assertion passes.
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = nonEmpty.size() - 1;
+        while (k >= 0) {
+            if (k - 1 >= 0 && nonEmpty.get(k - 1).canMergeWith(nonEmpty.get(k))) {
+                Cell mergedCell = nonEmpty.get(k - 1).mergeWith(nonEmpty.get(k));
+                merged.add(0, mergedCell); // add to front
+                scoreDelta[0] += mergedCell.getValue();
+                k -= 2;
+            } else {
+                merged.add(0, nonEmpty.get(k)); // add to front
+                k--;
+            }
+        }
+        return merged;
+    }
+
+
+LLM refinement suggestion:
+   `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty))  // where mergeCellsSpec is a pure specification function implementing the exact left-to-right merging algorithm`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty))  // where mergeCellsSpec is a pure specification function implementing the exact left-to-right merging algorithm`
+
+Check the new assertion again? (y/n): y   <- auto
+
+================================================================================
+ITERATION 3  -  assertion: `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty))  // where mergeCellsSpec is a pure specification function implementing the exact left-to-right merging algorithm`
+================================================================================
+
+--------------------------------------------------
+PHASE 1: False Positive Assessment (Is the assertion too strong?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... failed after 334s
+Error during the analysis: CONNECTION ERROR: could not reach the LLM API. Details: HTTPSConnectionPool(host='openrouter.ai', port=443): Read timed out.
+
+--------------------------------------------------
+PHASE 2: False Negative Assessment (Is the assertion too weak?)
+--------------------------------------------------
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 114s
+
+FALSE NEGATIVE: these mutants survive the assertion.
+
+[Mutant #1] Input [2,2] -> correct result [4] but scoreDelta unchanged (should be +4); assertion passes because it does not check scoreDelta.
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = 0;
+        while (k < nonEmpty.size()) {
+            if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                merged.add(mergedCell);
+                // scoreDelta[0] += mergedCell.getValue(); // removed
+                k += 2;
+            } else {
+                merged.add(nonEmpty.get(k));
+                k++;
+            }
+        }
+        return merged;
+    }
+
+[Mutant #2] Input [2,2] -> correct result [4] but scoreDelta increased by 2 instead of 4; assertion passes because it does not check scoreDelta.
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = 0;
+        while (k < nonEmpty.size()) {
+            if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                merged.add(mergedCell);
+                scoreDelta[0] += nonEmpty.get(k).getValue(); // wrong value added
+                k += 2;
+            } else {
+                merged.add(nonEmpty.get(k));
+                k++;
+            }
+        }
+        return merged;
+    }
+
+[Mutant #3] Input [2,4] -> correct result [2,4] but scoreDelta increased by 2+4=6 (should be 0); assertion passes because it does not check scoreDelta.
+    private static List<Cell> mergeCells(List<Cell> nonEmpty, int[] scoreDelta) {
+        List<Cell> merged = new ArrayList<>();
+        int k = 0;
+        while (k < nonEmpty.size()) {
+            if (k + 1 < nonEmpty.size() && nonEmpty.get(k).canMergeWith(nonEmpty.get(k + 1))) {
+                Cell mergedCell = nonEmpty.get(k).mergeWith(nonEmpty.get(k + 1));
+                merged.add(mergedCell);
+                scoreDelta[0] += mergedCell.getValue();
+                k += 2;
+            } else {
+                merged.add(nonEmpty.get(k));
+                scoreDelta[0] += nonEmpty.get(k).getValue(); // incorrect update on non-merge
+                k++;
+            }
+        }
+        return merged;
+    }
+
+
+LLM refinement suggestion:
+   `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty)) && scoreDelta[0] == \old(scoreDelta[0]) + mergeScoreSpec(nonEmpty)  // where mergeScoreSpec is a pure function computing the total score increase from merging nonEmpty`
+
+[User Feedback - Make a decision]
+  1. Accept the LLM suggestion
+  2. Modify the assertion manually
+  3. Reject and keep the current assertion
+Select option (1/2/3): 1   <- auto
+Assertion updated to: `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty)) && scoreDelta[0] == \old(scoreDelta[0]) + mergeScoreSpec(nonEmpty)  // where mergeScoreSpec is a pure function computing the total score increase from merging nonEmpty`
+
+Reached the maximum of 3 iterations.
+
+================================================================================
+FINAL ORACLE REFINEMENT RESULT
+================================================================================
+  Initial: `@ensures \result.size() < nonEmpty.size();`
+  After iteration 1: `@ensures \result.size() <= nonEmpty.size() && (\forall int i; 0 <= i < \result.size()-1; !\result.get(i).canMergeWith(\result.get(i+1))) && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue())`
+  After iteration 2: `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty))  // where mergeCellsSpec is a pure specification function implementing the exact left-to-right merging algorithm`
+  After iteration 3: `\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty)) && scoreDelta[0] == \old(scoreDelta[0]) + mergeScoreSpec(nonEmpty)  // where mergeScoreSpec is a pure function computing the total score increase from merging nonEmpty`
+
+Final Assertion Approved by the User:
+`\result.size() <= nonEmpty.size() && (\sum Cell c; \result.has(c); c.getValue() == \sum Cell c; nonEmpty.has(c); c.getValue()) && \result.equals(mergeCellsSpec(nonEmpty)) && scoreDelta[0] == \old(scoreDelta[0]) + mergeScoreSpec(nonEmpty)  // where mergeScoreSpec is a pure function computing the total score increase from merging nonEmpty`
+
