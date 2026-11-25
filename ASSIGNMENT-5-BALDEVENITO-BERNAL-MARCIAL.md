@@ -92,48 +92,48 @@ de strings mal formados o tableros inválidos.
 python3 mutation_fuzzer.py \
 --input grammar-based-fuzzer/fuzzed_boards.txt \
 --fails grammar-based-fuzzer/fails.txt \
---mutants 10 --max-mutations 2
+--mutants 10 --max-mutations 2 --seed 2048
 ```
+
+Esta corrida es contra la versión del constructor anterior a las correcciones
+(commit `63220ac`). Con `--seed 2048` se puede repetir y da siempre los mismos
+mutantes. Los tableros que fallaron quedaron en `grammar-based-fuzzer/fails.txt`.
 
 ```bash
 Mutants: 10000 (from grammar-based-fuzzer/fuzzed_boards.txt)
 Corpus: grammar-based-fuzzer/mutated_boards.txt
-PASS: 9892/10000
-FAIL: 108/10000
+PASS: 9900/10000
+FAIL: 100/10000
 UNRESOLVED: 0/10000
 
 # Ejemplos de caso 1
-FAIL #75: [4,128,0,8,4,32,128,512,1024,65536,0,2,16,4,32,0] (invalid board was accepted)
-    original: [4,128,0,8,4,32,128,512,1024,128,0,2,16,4,32,0]
-FAIL #167: [8,128,0,16,4,8,2,4096,16,16,2,2,16,8,2,16] (invalid board was accepted)
-    original: [8,128,0,16,4,8,2,16,16,16,2,2,16,8,2,16]
-FAIL #248: [128,1024,0,2,32,16,1024,128,1024,65536,2,64,32,8,256,16] (invalid board was accepted)
-    original: [128,1024,0,2,32,16,1024,128,1024,1024,2,64,32,8,256,16]
+FAIL #83: [8,1024,0,8,32,2,0,128,512,0,8,65536,2,4,4,4] (invalid board was accepted)
+    original: [8,1024,0,8,32,2,0,128,512,0,8,512,2,4,4,4]
+FAIL #141: [1024,1024,0,4,4,32,65536,256,512,4,128,64,2,0,8,2] (invalid board was accepted)
+    original: [1024,1024,0,4,4,32,256,256,512,4,128,64,2,0,8,2]
+FAIL #322: [32,512,0,1024,32,0,32,32,512,8,8,4,0,64,64,4096] (invalid board was accepted)
+    original: [32,512,0,1024,32,0,32,32,512,8,8,4,0,64,64,8]
 
 # Ejemplos de caso 2
-FAIL #1070: [512,256,00,8,512,16,64,512,32,1024,32,32,512,8,64,0]  (invalid board was accepted)
-    original: [512,256,0,8,512,16,64,512,32,1024,32,32,512,8,64,0]
-FAIL #2518: [1024,8,0,64,1024,512,256,8,128,0,0,4096,256,16,2,00] (invalid board was accepted)
-    original: [1024,8,0,64,1024,512,256,8,128,0,0,32,256,16,2,0]
-FAIL #9712: [64,64,00,512,8,64,1024,16,4,32,64,32,65536,64,4,256] (invalid board was accepted)
-    original: [64,64,0,512,8,64,1024,16,4,32,64,32,64,64,4,256]
+FAIL #1317: [4,64,0,4096,16,256,2,32,0,4,8,00,16,512,64,4] (invalid board was accepted)
+    original: [4,64,0,8,16,256,2,32,0,4,8,0,16,512,64,4]
+FAIL #5736: [128,256,0,02,0,512,256,8,1024,4,16,8,4,65536,64,8] (invalid board was accepted)
+    original: [128,256,0,0,0,512,256,8,1024,4,16,8,4,512,64,8]
 
-
-# Ejemplos de caso 3 (el mutante tiene un espacio al final, que no se ve)
-FAIL #5513: [2,8,0,4,256,1024,16,64,32,4,128,256,128,4,4,128]  (invalid board was accepted)
-    original: [2,8,0,4,256,1024,16,64,32,4,128,256,128,4,4,128]
-
+# Ejemplos de caso 3 (el mutante tiene un espacio al principio)
+FAIL #3926:  [256,256,0,0,8,128,512,8,32,8,0,2,8,256,256,256] (invalid board was accepted)
+    original: [256,256,0,0,8,128,512,8,32,8,0,2,8,256,256,256]
 ```
 
 ## Errores encontrados en el constructor
 
-De los 10.000 mutantes, 108 fueron aceptados aunque el fuzzer los considera
+De los 10.000 mutantes, 100 fueron aceptados aunque el fuzzer los considera
 inválidos (`FAIL`, todos con el detalle `invalid board was accepted`). Al revisar
 los casos de `fails.txt` se distinguen tres problemas en el constructor
 `Board(String)`:
 
-1. **No se valida el valor máximo de una celda.** 106 de los 108 fallos contienen
-   una ficha mayor que 2048: 55 casos con `65536` y 51 con `4096`.
+1. **No se valida el valor máximo de una celda.** 98 de los 100 fallos contienen
+   una ficha mayor que 2048: 56 casos con `65536` y 42 con `4096`.
    `parseCellValue` solo comprueba que el token sea `\d+` y que entre en un `int`;
    `Cell` rechaza valores negativos, `1` y no potencias de dos, pero no impone un
    tope. `validateInitialBoard` solo busca exactamente `2048`, por lo que `4096`
@@ -142,13 +142,14 @@ los casos de `fails.txt` se distinguen tres problemas en el constructor
    `2 <= value && value < WINNING_VALUE && (value & (value - 1)) == 0`.
 
 2. **Se aceptan ceros con ceros a la izquierda.** El token `"00"` pasa `\d+` e
-   `Integer.parseInt("00")` devuelve `0`, así que se acepta como celda vacía
-   (caso #1070 y, junto con otro error, #2518 y #9712). Si se exige la forma
+   `Integer.parseInt("00")` devuelve `0`, así que se acepta como celda vacía. Lo
+   mismo pasa con `"02"`, que se lee como `2`. Aparece en 4 fallos (#1317,
+   #1990, #5736 y #7012), siempre junto con una ficha mayor que 2048. Si se exige la forma
    decimal canónica, habría que comparar `token.equals(String.valueOf(parsed))`.
 
 3. **Se aceptan espacios alrededor del tablero.** `splitInitialBoard` aplica
-   `trim()` al string completo, por lo que un mutante con un espacio final (caso
-   #5513) se acepta aunque `is_valid_board` del fuzzer lo marque como inválido.
+   `trim()` al string completo, por lo que un mutante con un espacio al principio
+   (casos #3926 y #8990) se acepta aunque `is_valid_board` del fuzzer lo marque como inválido.
    Es una decisión de tolerancia, pero conviene dejarla explícita.
 
 El fallo principal es el primero: la validación de la celda no incluye la cota
@@ -159,7 +160,7 @@ existe una celda con valor `2048`; nunca considera los valores mayores.
 ## Soluciones aplicadas a los errores del constructor
 
 Corregimos los tres tipos de error con tests de regresión en `BoardTest` y
-verificamos que los 108 tableros de `fails.txt` se rechacen.
+verificamos que los 100 tableros de `fails.txt` se rechacen.
 
 ### Error tipo 1: fichas mayores que el valor ganador
 
@@ -186,7 +187,7 @@ o después de `]` se rechaza. Se agregó el test
 
 ### Verificación
 
-Con los tres cambios, `mvn clean test` pasa completo y los 108 mutantes guardados
+Con los tres cambios, `mvn clean test` pasa completo y los 100 mutantes guardados
 en `grammar-based-fuzzer/fails.txt` son rechazados con el mensaje
 `Invalid initial board`.
 
@@ -230,7 +231,7 @@ el string, y la validación de una celda se lee como tres pasos: parsear, valida
 y construir.
 
 La modularización no cambió el comportamiento: `mvn clean test` sigue pasando y
-los 108 casos de `fails.txt` continúan rechazándose.
+los 100 casos de `fails.txt` continúan rechazándose.
 
 ## Resultado final del fuzzer de mutaciones
 
@@ -272,8 +273,8 @@ python3 oasis.py --case 1                # o --case 2, --case 3
 
 Sin `--case`, el programa muestra un menú donde también se puede cargar código y
 una aserción propios. Con `--max-iterations N` se cambia el máximo de vueltas
-(por defecto, 3). Con `--debug` se ven además los prompts, las respuestas
-crudas del LLM y los tokens usados (por stderr, así no se mezclan con la salida
+(por defecto, 3). Con `--debug` se ven además los prompts que arma oasis.py, las respuestas
+crudas del LLM (JSON tal cual llega antes de que oasis.py lo procese y lo muestre), el tiempo y tokens de esa consulta (por stderr, así no se mezclan con la salida
 normal).
 
 ## Cómo funciona
@@ -306,7 +307,8 @@ Al final muestra cómo fue cambiando la aserción en cada vuelta.
 Las salidas completas están en `oasis-output.txt` (caso 1), `oasis-output-case2.txt`
 y `oasis-output-case3.txt`.
 
-En los casos 2 y 3 aceptamos **todas** las sugerencias del LLM y lo dejamos
+En el caso 1 decidimos nosotros en cada paso, como lo haría un usuario. En los
+casos 2 y 3 aceptamos **todas** las sugerencias del LLM y lo dejamos
 iterar 3 veces, para ver hasta dónde llegaba solo. Después revisamos cada
 propuesta y marcamos cuáles aceptaría un usuario (✅) y cuáles no (❌). En la
 tercera vuelta de los dos casos, la Fase 1 falló porque el modelo gratuito no
@@ -325,47 +327,23 @@ public static int abs(int x) {
 }
 ```
 
-| Paso | Aserción | Qué encontró OASIs |
+| Vuelta | Qué encontró OASIs | ¿Sirve? |
 | --- | --- | --- |
-| Inicial | `\result >= 0 && \result >= x` | |
-| Fase 1 | | Test: `abs(Integer.MIN_VALUE)` devuelve `MIN_VALUE` por desbordamiento, así que `\result >= 0` falla con el programa correcto. |
-| Aceptada | `(\result >= 0 \|\| \result == Integer.MIN_VALUE) && \result >= x` | |
-| Fase 2 | | Mutantes que devuelven `0` o `42` para los negativos: la aserción los acepta. |
-| Final | `(x >= 0 && \result == x) \|\| (x < 0 && \result == -x)` | |
+| 1, Fase 1 | Test: `abs(Integer.MIN_VALUE)` devuelve `MIN_VALUE` por desbordamiento, así que `\result >= 0` falla con el programa correcto. | ✅ |
+| 1, aceptada | `\result >= x && (x != Integer.MIN_VALUE ==> \result >= 0)` | ✅ |
+| 1, Fase 2 | Mutantes: los negativos devuelven `0`, los negativos devuelven `-x + 1` y los positivos devuelven `x + 1`. | ✅ Los dos primeros sobreviven. El tercero no del todo: la aserción lo detecta con `MAX_VALUE`. |
+| 1, aceptada | `\result == (x < 0 ? -x : x)` | ✅ Fija el resultado exacto. |
+| 2, Fase 1 | No encontró tests que la rompan. Funciona incluso con `MIN_VALUE`, porque ahí `-x` también da `MIN_VALUE`. | ✅ |
+| 2, Fase 2 | No encontró mutantes que sobrevivan. | ✅ |
 
-El LLM también propuso otros dos mutantes: `-x + 1` para los negativos y `x + 1`
-para los positivos. Revisándolos, vimos que no sobreviven del todo: la aserción
-los detecta con `MIN_VALUE` y con `MAX_VALUE`, respectivamente. Por eso no los
-tomamos en cuenta.
+La aserción no cambió en la segunda vuelta, así que OASIs terminó solo. Para eso
+sirve iterar: la segunda revisión confirma que el refinamiento no se pasó de
+fuerte.
 
-#### Corrida con la versión que itera
-
-Volvimos a correr el caso con la versión nueva. En la primera vuelta, la
-aserción terminó en `(\result == x && x >= 0) || (\result == -x && x < 0)`. La
-segunda vuelta revisó esa aserción y no encontró nada:
-
-```
-ITERATION 2  -  assertion: `(\result == x && x >= 0) || (\result == -x && x < 0)`
-
-PHASE 1: False Positive Assessment (Is the assertion too strong?)
-No test was found that breaks the assertion on a correct execution.
-
-PHASE 2: False Negative Assessment (Is the assertion too weak?)
-No mutant was found that survives the assertion.
-
-The assertion did not change in this iteration: refinement finished.
-
-FINAL ORACLE REFINEMENT RESULT
-  Initial: `@ensures \result >= 0 && \result >= x;`
-  After iteration 1: `(\result == x && x >= 0) || (\result == -x && x < 0)`
-```
-
-- **No hay tests que la rompan:** la aserción ya no es demasiado fuerte.
-  Funciona incluso con `MIN_VALUE`, porque ahí `-x` también da `MIN_VALUE`.
-- **No hay mutantes que sobrevivan:** ya no es demasiado débil, porque fija el
-  resultado exacto para cada `x`.
-- **La aserción no cambió en la segunda vuelta**, así que OASIs terminó solo.
-  Esta segunda revisión es justamente para lo que sirve iterar.
+El mutante `-x + 1` es interesante. Con la aserción inicial no sobrevivía, porque
+`MIN_VALUE` lo detectaba. Pero sí sobrevive después de relajar la aserción para
+`MIN_VALUE` en la Fase 1. Arreglar el falso positivo abrió un falso negativo, y la
+Fase 2 lo encontró.
 
 ### Caso 2: `Cell.mergeWith`, con un contrato de Daikon
 
