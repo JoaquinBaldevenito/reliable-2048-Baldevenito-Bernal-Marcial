@@ -49,7 +49,7 @@ Respond with this JSON object:
       "reason": "input -> real output, and the part of the assertion that fails (one line)"
     }}
   ],
-  "suggested_assertion": "weaker assertion that accepts these executions, or empty"
+  "suggested_assertion": "weaker @ensures assertion that accepts these executions, or empty"
 }}
 """,
         },
@@ -80,7 +80,7 @@ Respond with this JSON object:
       "reason": "input -> wrong output that the assertion still accepts (one line)"
     }}
   ],
-  "suggested_assertion": "stronger assertion that kills these mutants, or empty"
+  "suggested_assertion": "stronger @ensures assertion using declarative properties (avoid copying the method's exact implementation), or empty"
 }}
 """,
         },
@@ -134,7 +134,7 @@ Respond with this JSON object:
             payload["provider"] = {"only": ["stealth"], "allow_fallbacks": False}
 
         try:
-            response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=120)
+            response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=300)
             response.raise_for_status()
             res_data = response.json()
             content = res_data["choices"][0]["message"].get("content") or ""
@@ -143,7 +143,7 @@ Respond with this JSON object:
             return content, res_data.get("usage") or {}
         except requests.exceptions.Timeout:
             raise RuntimeError(
-                "TIMEOUT: the LLM API did not respond within 120 seconds. "
+                "TIMEOUT: the LLM API did not respond within 300 seconds. "
                 "The request may be too large or the provider may be overloaded."
             )
         except requests.exceptions.HTTPError as e:

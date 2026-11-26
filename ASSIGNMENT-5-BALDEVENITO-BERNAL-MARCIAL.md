@@ -246,7 +246,7 @@ no reportó errores: los 10.000 casos terminaron como `PASS` (`FAIL: 0`,
 
 # Ejercicio 2: OASIs
 
-Es una tecnica y una herramienta para evaluar que tan bueno es un oraculo y mejorarlo. Basicamente, toma una asercion ya escrita y busca donde falla.
+Es una técnica y una herramienta para evaluar qué tan bueno es un oráculo y mejorarlo. Básicamente, toma una aserción ya escrita y busca dónde falla.
 
 Una aserción puede fallar de dos maneras:
 
@@ -255,17 +255,18 @@ Una aserción puede fallar de dos maneras:
 
 `oasis.py` es nuestra versión simple de OASIs. Le pasa al LLM el código y la
 aserción, y le pide dos cosas: un **test** que demuestre que la aserción es
-demasiado fuerte, y un **mutante** (el método con un error metido a propósito)
+demasiado fuerte, y un **mutante** (el método con un error introducido a propósito)
 que demuestre que es demasiado débil. Ese test o ese mutante es el feedback. La
 decisión de cambiar la aserción la toma siempre el usuario.
 
 ## Cómo usarlo
 
-Necesita una API key gratuita de [OpenRouter](https://openrouter.ai/keys) en la
+Requiere `requests` y una API key gratuita de [OpenRouter](https://openrouter.ai/keys) en la
 variable `LLM_API_KEY`. Usamos el modelo gratuito
 `nvidia/nemotron-3-ultra-550b-a55b:free`.
 
 ```bash
+pip install requests
 echo 'LLM_API_KEY=sk-or-...' > .env      # .env está en el .gitignore
 set -a; source .env; set +a
 python3 oasis.py --case 1                # o --case 2, --case 3
@@ -294,10 +295,8 @@ La salida muestra el test o el mutante como código y una línea con el motivo:
 ```
 FALSE POSITIVE: these tests fail on the correct program.
 
-[Test #1] abs(MIN_VALUE) -> MIN_VALUE, fails \result >= 0
-    @Test void minValue() {
-        assertTrue(abs(Integer.MIN_VALUE) >= 0);
-    }
+[Test #1] input -2147483648 -> real output -2147483648, fails \result >= 0
+    @Test void testAbsMinValue() { int x = Integer.MIN_VALUE; int result = abs(x); assertTrue("abs(" + x + ") = " + result + " should be >=0 and >= x", result >= 0 && result >= x); }
 ```
 
 Al final muestra cómo fue cambiando la aserción en cada vuelta.
@@ -329,21 +328,21 @@ public static int abs(int x) {
 
 | Vuelta | Qué encontró OASIs | ¿Sirve? |
 | --- | --- | --- |
-| 1, Fase 1 | Test: `abs(Integer.MIN_VALUE)` devuelve `MIN_VALUE` por desbordamiento, así que `\result >= 0` falla con el programa correcto. | ✅ |
-| 1, aceptada | `\result >= x && (x != Integer.MIN_VALUE ==> \result >= 0)` | ✅ |
-| 1, Fase 2 | Mutantes: los negativos devuelven `0`, los negativos devuelven `-x + 1` y los positivos devuelven `x + 1`. | ✅ Los dos primeros sobreviven. El tercero no del todo: la aserción lo detecta con `MAX_VALUE`. |
-| 1, aceptada | `\result == (x < 0 ? -x : x)` | ✅ Fija el resultado exacto. |
-| 2, Fase 1 | No encontró tests que la rompan. Funciona incluso con `MIN_VALUE`, porque ahí `-x` también da `MIN_VALUE`. | ✅ |
+| 1, Fase 1 | Test: `abs(Integer.MIN_VALUE)` devuelve `-2147483648` por desbordamiento, así que `\result >= 0` falla con el programa correcto. | ✅ |
+| 1 (Fase 1), aceptada | `@ensures \result >= x && (\result >= 0 \|\| \result == Integer.MIN_VALUE);` | ✅ |
+| 1, Fase 2 | Mutantes: los negativos devuelven `0`, los negativos devuelven `1` y los negativos devuelven `-x - 1`. | ✅ Todos sobreviven (incluso `-x - 1` con `MIN_VALUE`, donde desborda a `MAX_VALUE`). |
+| 1 (Fase 2), aceptada | `@ensures (\result == x \|\| \result == -x) && (\result >= 0 \|\| \result == Integer.MIN_VALUE);` | ✅ Fija el resultado exacto de forma declarativa. |
+| 2, Fase 1 | No encontró tests que la rompan. Funciona incluso con `MIN_VALUE`, porque se cumple `\result == x`. | ✅ |
 | 2, Fase 2 | No encontró mutantes que sobrevivan. | ✅ |
 
 La aserción no cambió en la segunda vuelta, así que OASIs terminó solo. Para eso
 sirve iterar: la segunda revisión confirma que el refinamiento no se pasó de
 fuerte.
 
-El mutante `-x + 1` es interesante. Con la aserción inicial no sobrevivía, porque
-`MIN_VALUE` lo detectaba. Pero sí sobrevive después de relajar la aserción para
-`MIN_VALUE` en la Fase 1. Arreglar el falso positivo abrió un falso negativo, y la
-Fase 2 lo encontró.
+En la Fase 2, los tres mutantes alteran la magnitud del resultado en los negativos
+(`0`, `1` y `-x - 1`) manteniendo valores mayores o iguales a `x`, por lo que
+sobreviven a la aserción relajada de la Fase 1. Al incorporar `\result == x || \result == -x`,
+se eliminan todos sin copiar literalmente la estructura `if/else` del método.
 
 ### Caso 2: `Cell.mergeWith`, con un contrato de Daikon
 
@@ -362,17 +361,17 @@ public Cell mergeWith(Cell other) {
 
 La aserción inicial sale de lo que infirió Daikon con nuestros tests manuales
 (`return.value one of { 4, 8 }` en `daikon-output-manual.txt`). Esos tests solo
-fusionaban 2 + 2 y 4 + 4, y Daikon generalizó de más.
+fusionaban 2 + 2 y 4 + 4, y Daikon sobreajustó el contrato a esos pocos casos.
 
 | Vuelta | Qué encontró OASIs | ¿Sirve? |
 | --- | --- | --- |
 | 1, Fase 1 | Tests: 8 + 8 da 16, y la aserción falla aunque el resultado es correcto. También 1 + 1 y 3 + 3. | ✅ 8 + 8. ❌ 1 + 1 y 3 + 3: `Cell` no acepta 1 ni valores que no sean potencia de 2. |
 | 1, Fase 2 | Mutantes que sacan o invierten el chequeo `canMergeWith`: fusionan celdas distintas en vez de lanzar la excepción. | ✅ La aserción no dice nada de las excepciones. |
-| 1, aceptada | `canMergeWith(other) ==> \result.value == this.value * 2`, y si no se puede fusionar, `\signals (IllegalArgumentException)` | ✅ **Esta es la buena.** |
+| 1 (Fase 2), aceptada | `canMergeWith(other) ==> \result.value == this.value * 2`, y si no se puede fusionar, `\signals (IllegalArgumentException)` | ✅ **Esta es la buena.** |
 | 2, Fase 2 | Mutantes que hacen `this.value = 0` antes de devolver. | ❌ No compilan: `value` es `private final`. |
-| 2, aceptada | Lo mismo, pero con `\old(this.value)` | ❌ No hace falta: `Cell` es inmutable. |
+| 2 (Fase 2), aceptada | Lo mismo, pero con `\old(this.value)` | ❌ No hace falta: `Cell` es inmutable. |
 | 3, Fase 2 | Mutantes que cambian `this.value` u `other.value`, y uno que cambia el texto del mensaje de error. | ❌ Los dos primeros no compilan. El tercero es válido, pero no importa. |
-| 3, aceptada | Agrega `assignable \nothing`, `\fresh(\result)` y que el mensaje sea exactamente `"Cannot merge cells: ..."` | ❌ Sobreajustada: se rompe si alguien cambia el mensaje. |
+| 3 (Fase 2), aceptada | Agrega `assignable \nothing`, `\fresh(\result)` y que el mensaje sea exactamente `"Cannot merge cells: ..."` | ❌ Sobreajustada: se rompe si alguien cambia el mensaje. |
 
 Un usuario se quedaría con la aserción de la vuelta 1 y rechazaría las
 siguientes. Casi todos los errores del LLM tienen la misma causa: **solo ve el
@@ -414,15 +413,15 @@ vez de `[4, 4]`.
 | Vuelta | Qué encontró OASIs | ¿Sirve? |
 | --- | --- | --- |
 | 1, Fase 1 | Tests `[2]`, `[2, 4]` y `[2, 4, 8]`: no hay nada que fusionar y la aserción falla. | ✅ |
-| 1, aceptada | `\result.size() <= nonEmpty.size()` | ✅ |
+| 1 (Fase 1), aceptada | `\result.size() <= nonEmpty.size()` | ✅ |
 | 1, Fase 2 | Mutantes: uno nunca fusiona (`[2, 2]` queda `[2, 2]`), uno duplica una ficha (`[2, 2]` → `[4, 2]`) y uno pierde la ficha fusionada (`[2, 2]` → `[]`). | ✅ Todos sobreviven con `<=`. |
-| 1, aceptada | `<=`, "no quedan dos vecinas que se puedan fusionar" y "la suma de los valores se conserva" | ❌ Parece buena, pero es demasiado fuerte (ver la vuelta 2). |
+| 1 (Fase 2), aceptada | `<=`, "no quedan dos vecinas que se puedan fusionar" y "la suma de los valores se conserva" | ❌ Parece buena, pero es demasiado fuerte (ver la vuelta 2). |
 | 2, Fase 1 | **Test: `[2, 2, 4]` da `[4, 4]`**, y lo mismo `[2, 2, 2, 2]`. En el 2048, una ficha recién fusionada no se vuelve a fusionar, así que quedan vecinas iguales. | ✅ **La segunda vuelta corrigió un error de la primera.** |
-| 2, aceptada | `<=` y "la suma se conserva" | ✅ |
+| 2 (Fase 1), aceptada | `<=` y "la suma se conserva" | ✅ |
 | 2, Fase 2 | Mutantes: uno nunca fusiona (`[2, 2, 4]` queda igual) y otro fusiona de derecha a izquierda (`[2, 2, 2]` → `[2, 4]` en vez de `[4, 2]`). | ✅ El segundo es un error real del 2048. |
-| 2, aceptada | Además, `\result.equals(mergeCellsSpec(nonEmpty))` | ❌ `mergeCellsSpec` no existe: es "comparar contra otra copia del algoritmo". |
+| 2 (Fase 2), aceptada | Además, `\result.equals(mergeCellsSpec(nonEmpty))` | ❌ `mergeCellsSpec` no existe: es "comparar contra otra copia del algoritmo". |
 | 3, Fase 2 | Mutantes que suman mal el puntaje: no suman nada, suman el doble o suman sin fusionar. | ✅ Ninguna aserción revisaba `scoreDelta`. |
-| 3, aceptada | Además, `scoreDelta[0] == \old(scoreDelta[0]) + mergeScoreSpec(nonEmpty)` | ❌ Mismo problema: `mergeScoreSpec` no existe. |
+| 3 (Fase 2), aceptada | Además, `scoreDelta[0] == \old(scoreDelta[0]) + mergeScoreSpec(nonEmpty)` | ❌ Mismo problema: `mergeScoreSpec` no existe. |
 
 Es el caso que mejor muestra para qué sirve OASIs:
 

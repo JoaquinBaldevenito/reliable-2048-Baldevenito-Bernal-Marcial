@@ -1,4 +1,3 @@
-
 Running Case Study 1: Math.abs...
 
 ================================================================================
@@ -24,31 +23,32 @@ ITERATION 1  -  assertion: `@ensures \result >= 0 && \result >= x;`
 --------------------------------------------------
 PHASE 1: False Positive Assessment (Is the assertion too strong?)
 --------------------------------------------------
-Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 84s
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 104s
 
 FALSE POSITIVE: these tests fail on the correct program.
 
-[Test #1] Integer.MIN_VALUE -> -2147483648, fails \result >= 0
-    @Test void testAbsMinValue() { int x = Integer.MIN_VALUE; int result = abs(x); assertTrue(result >= 0 && result >= x); }
+[Test #1] input -2147483648 -> real output -2147483648, fails \result >= 0
+    @Test void testAbsMinValue() { int x = Integer.MIN_VALUE; int result = abs(x); assertTrue("abs(" + x + ") = " + result + " should be >=0 and >= x", result >= 0 && result >= x); }
 
 
 LLM refinement suggestion:
-   `\result >= x && (x != Integer.MIN_VALUE ==> \result >= 0)`
+   `@ensures \result >= x && (\result >= 0 || \result == Integer.MIN_VALUE);`
 
 [User Feedback - Make a decision]
   1. Accept the LLM suggestion
   2. Modify the assertion manually
   3. Reject and keep the current assertion
-Select option (1/2/3): Assertion updated to: `\result >= x && (x != Integer.MIN_VALUE ==> \result >= 0)`
+Select option (1/2/3): 1
+Assertion updated to: `@ensures \result >= x && (\result >= 0 || \result == Integer.MIN_VALUE);`
 
 --------------------------------------------------
 PHASE 2: False Negative Assessment (Is the assertion too weak?)
 --------------------------------------------------
-Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 155s
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 208s
 
 FALSE NEGATIVE: these mutants survive the assertion.
 
-[Mutant #1] x=-1 -> 0 (assertion accepts 0 >= -1 and 0>=0)
+[Mutant #1] x = -1 -> returns 0 (expected 1), assertion holds (0 >= -1 && 0 >= 0)
     public static int abs(int x) {
         if (x < 0) {
             return 0;
@@ -56,47 +56,49 @@ FALSE NEGATIVE: these mutants survive the assertion.
         return x;
     }
 
-[Mutant #2] x=-1 -> 2 (assertion accepts 2 >= -1 and 2>=0)
+[Mutant #2] x = -5 -> returns 1 (expected 5), assertion holds (1 >= -5 && 1 >= 0)
     public static int abs(int x) {
         if (x < 0) {
-            return -x + 1;
+            return 1;
         }
         return x;
     }
 
-[Mutant #3] x=0 -> 1 (assertion accepts 1 >= 0 and 1>=0)
+[Mutant #3] x = -1 -> returns 0 (expected 1), assertion holds (0 >= -1 && 0 >= 0); x = Integer.MIN_VALUE -> returns 2147483647 (expected MIN_VALUE), assertion holds
     public static int abs(int x) {
         if (x < 0) {
-            return -x;
+            return -x - 1;
         }
-        return x + 1;
+        return x;
     }
 
 
 LLM refinement suggestion:
-   `\result == (x < 0 ? -x : x)`
+   `@ensures (\result == x || \result == -x) && (\result >= 0 || \result == Integer.MIN_VALUE);`
 
 [User Feedback - Make a decision]
   1. Accept the LLM suggestion
   2. Modify the assertion manually
   3. Reject and keep the current assertion
-Select option (1/2/3): Assertion updated to: `\result == (x < 0 ? -x : x)`
+Select option (1/2/3): 1
+Assertion updated to: `@ensures (\result == x || \result == -x) && (\result >= 0 || \result == Integer.MIN_VALUE);`
 
-Check the new assertion again? (y/n): 
+Check the new assertion again? (y/n): y
+
 ================================================================================
-ITERATION 2  -  assertion: `\result == (x < 0 ? -x : x)`
+ITERATION 2  -  assertion: `@ensures (\result == x || \result == -x) && (\result >= 0 || \result == Integer.MIN_VALUE);`
 ================================================================================
 
 --------------------------------------------------
 PHASE 1: False Positive Assessment (Is the assertion too strong?)
 --------------------------------------------------
-Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 53s
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 32s
 No test was found that breaks the assertion on a correct execution.
 
 --------------------------------------------------
 PHASE 2: False Negative Assessment (Is the assertion too weak?)
 --------------------------------------------------
-Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 261s
+Asking the LLM (nvidia/nemotron-3-ultra-550b-a55b:free)... done in 67s
 No mutant was found that survives the assertion.
 
 The assertion did not change in this iteration: refinement finished.
@@ -105,8 +107,7 @@ The assertion did not change in this iteration: refinement finished.
 FINAL ORACLE REFINEMENT RESULT
 ================================================================================
   Initial: `@ensures \result >= 0 && \result >= x;`
-  After iteration 1: `\result == (x < 0 ? -x : x)`
+  After iteration 1: `@ensures (\result == x || \result == -x) && (\result >= 0 || \result == Integer.MIN_VALUE);`
 
 Final Assertion Approved by the User:
-`\result == (x < 0 ? -x : x)`
-
+`@ensures (\result == x || \result == -x) && (\result >= 0 || \result == Integer.MIN_VALUE);`
